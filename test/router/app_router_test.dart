@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intuly/features/home/home_page.dart';
 import 'package:intuly/router/app_router.dart';
 
 void main() {
@@ -13,10 +12,5 @@ void main() {
     expect(resolveRedirect(loggedIn: true, location: '/login'), '/home');
     expect(resolveRedirect(loggedIn: true, location: '/'), '/home');
     expect(resolveRedirect(loggedIn: true, location: '/home'), isNull);
-  });
-
-  test('maskToken 只露出前 10 位', () {
-    expect(maskToken('abcdefghijklmnop'), 'abcdefghij…');
-    expect(maskToken('short'), '••••••');
   });
 }

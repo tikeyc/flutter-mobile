@@ -38,11 +38,12 @@ void main() {
   });
 
   testWidgets('有会话时进入首页，退出后回到登录页', (tester) async {
-    await pumpApp(tester, initial: const Session(token: 'abcdefghijklmnop', account: 'alice'));
-    expect(find.text('alice'), findsOneWidget);
-    expect(find.text('Token: abcdefghij…'), findsOneWidget);
+    await pumpApp(tester,
+        initial: const Session(token: 'abcdefghijklmnop', account: 'alice'));
+    expect(find.text('话题'), findsOneWidget);
+    expect(find.text('灵感社区'), findsOneWidget);
 
-    await tester.tap(find.text('退出登录'));
+    await tester.tap(find.byIcon(Icons.person));
     await tester.pumpAndSettle();
     expect(find.text('登录/注册'), findsOneWidget);
     expect(storage.value, isNull);
@@ -58,7 +59,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('立即登录').hitTestable());
     await tester.pumpAndSettle();
-    expect(find.text('bob'), findsOneWidget);
+    expect(find.text('话题'), findsOneWidget);
     expect(storage.value?.account, 'bob');
   });
 }

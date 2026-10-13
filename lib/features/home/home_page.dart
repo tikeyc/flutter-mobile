@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../auth/application/auth_providers.dart';
 import 'application/home_providers.dart';
-import 'presentation/widgets/feed_grid.dart';
+import 'presentation/widgets/feed_card.dart';
 import 'presentation/widgets/home_bottom_nav.dart';
+import 'presentation/widgets/home_drawer.dart';
 import 'presentation/widgets/home_nav_bar.dart';
 
 /// 首页（灵感广场）：顶部 Tab 导航 + 双列瀑布流 + 底部导航。
@@ -20,6 +22,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   static const _tabs = ['话题', '活动', '灵感', '热门'];
   static const _bottomTabs = ['灵感社区', '模型广场', '需求大厅', '好物商城'];
 
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
   int _selectedTab = 0;
   int _selectedBottom = 0;
 
@@ -28,10 +32,13 @@ class _HomePageState extends ConsumerState<HomePage> {
     final feed = ref.watch(homeFeedProvider);
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.bg2,
+      drawer: const HomeDrawer(),
       appBar: HomeNavBar(
         tabs: _tabs,
         selected: _selectedTab,
+        onMenu: () => _scaffoldKey.currentState?.openDrawer(),
         onTabSelected: (i) => setState(() => _selectedTab = i),
       ),
       body: _feedBody(feed),
@@ -74,8 +81,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       child: CustomScrollView(
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.only(top: 4),
-            sliver: SliverToBoxAdapter(child: FeedGrid(items: feed.items)),
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+            sliver: SliverMasonryGrid.count(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childCount: feed.items.length,
+              itemBuilder: (context, index) => FeedCard(item: feed.items[index]),
+            ),
           ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(vertical: 16),

@@ -11,45 +11,49 @@ double clampAspect(double ratio) => ratio.clamp(9 / 16, 16 / 9);
 
 /// 首页瀑布流卡片：图片区（按真实比例）+ 白底信息区（按卡片类型变化）。
 class FeedCard extends StatelessWidget {
-  const FeedCard({super.key, required this.item, required this.width});
+  const FeedCard({super.key, required this.item});
 
   final FeedItem item;
-  final double width;
 
   static const double radius = 8;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      decoration: const BoxDecoration(
-        color: AppColors.bg1,
-        borderRadius: BorderRadius.all(Radius.circular(radius)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AspectRatio(
-            aspectRatio: clampAspect(item.aspectRatio),
-            child: _imageArea(),
-          ),
-          _infoArea(),
-        ],
-      ),
-    );
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return LayoutBuilder(builder: (context, constraints) {
+      // 图片按列宽解码，避免整图解码浪费内存与耗时。
+      final cacheWidth = (constraints.maxWidth * dpr).round();
+      return Container(
+        decoration: const BoxDecoration(
+          color: AppColors.bg1,
+          borderRadius: BorderRadius.all(Radius.circular(radius)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: clampAspect(item.aspectRatio),
+              child: _imageArea(cacheWidth),
+            ),
+            _infoArea(),
+          ],
+        ),
+      );
+    });
   }
 
   // ---------- 图片区 ----------
 
-  Widget _imageArea() {
+  Widget _imageArea(int cacheWidth) {
     return Stack(
       fit: StackFit.expand,
       children: [
         Image.network(
           imageProcessFormat(item.imageUrl),
           fit: BoxFit.cover,
+          cacheWidth: cacheWidth,
           errorBuilder: (_, _, _) => Container(color: AppColors.border4),
         ),
         switch (item) {

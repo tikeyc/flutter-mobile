@@ -42,6 +42,10 @@ class HomeFeedState {
 class HomeFeedNotifier extends Notifier<HomeFeedState> {
   bool _disposed = false;
 
+  // 快速甩动时每帧都会触发上拉，成功加载后短时间内节流，避免请求轰炸。
+  DateTime? _lastLoadMoreAt;
+  static const Duration _loadMoreThrottle = Duration(seconds: 1);
+
   @override
   HomeFeedState build() {
     ref.onDispose(() => _disposed = true);
@@ -69,16 +73,22 @@ class HomeFeedNotifier extends Notifier<HomeFeedState> {
 
   Future<void> loadMore() async {
     if (_disposed || state.loading || state.loadingMore) return;
+    final last = _lastLoadMoreAt;
+    if (last != null && DateTime.now().difference(last) < _loadMoreThrottle) {
+      return;
+    }
     state = state.copyWith(loadingMore: true);
     try {
       final fresh = await ref.read(homeRepoProvider).fetchHotList(first: false);
       if (_disposed) return;
+      _lastLoadMoreAt = DateTime.now();
       final seen = state.items.map((e) => e.bizId).toSet();
       final merged = [...state.items, ...fresh.where((e) => seen.add(e.bizId))];
       state = state.copyWith(items: merged, loadingMore: false);
     } catch (_) {
       if (_disposed) return;
-      // 加载更多失败静默处理，保留已有数据供下次上拉重试。
+      // 加载更多失败静默处理，保留已有数据供下次上拉重试；
+      // 失败不记节流时间，允许立即重试。
       state = state.copyWith(loadingMore: false);
     }
   }

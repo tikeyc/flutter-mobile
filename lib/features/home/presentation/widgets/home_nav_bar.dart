@@ -4,13 +4,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_icons.dart';
 
-/// 首页顶部导航栏：搜索 | 话题·活动·灵感·热门 Tab | 发布。
+/// 首页顶部导航栏：菜单 | 搜索 | 话题·活动·灵感·热门 Tab | 发布 | 更多。
 /// 设计稿 375 宽下 Tab 容器居中、图标贴左右边距 12。
 class HomeNavBar extends StatelessWidget implements PreferredSizeWidget {
   const HomeNavBar({
     super.key,
     required this.tabs,
     required this.selected,
+    this.onMenu,
     this.onTabSelected,
     this.onSearch,
     this.onMore,
@@ -19,6 +20,7 @@ class HomeNavBar extends StatelessWidget implements PreferredSizeWidget {
 
   final List<String> tabs;
   final int selected;
+  final VoidCallback? onMenu;
   final ValueChanged<int>? onTabSelected;
   final VoidCallback? onSearch;
   final VoidCallback? onMore;
@@ -40,6 +42,8 @@ class HomeNavBar extends StatelessWidget implements PreferredSizeWidget {
         child: Row(
           children: [
             const SizedBox(width: 12),
+            _menuButton(onTap: onMenu),
+            const SizedBox(width: 6),
             _icon(AppIcons.search, onTap: onSearch),
             Expanded(child: Center(child: _tabs())),
             _icon(AppIcons.publish, onTap: onPublish),
@@ -51,6 +55,22 @@ class HomeNavBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
   }
+
+  /// 左上角汉堡按钮，点击打开抽屉。尺寸与 [_icon] 保持一致。
+  Widget _menuButton({VoidCallback? onTap}) => IconButton(
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+        iconSize: 24,
+        onPressed: onTap,
+        icon: const SizedBox(
+          width: 24,
+          height: 24,
+          child: Center(
+            child: Icon(Icons.menu, size: 20, color: AppColors.text1),
+          ),
+        ),
+      );
 
   Widget _icon(String asset, {VoidCallback? onTap}) => IconButton(
         visualDensity: VisualDensity.compact,

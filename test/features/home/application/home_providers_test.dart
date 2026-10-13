@@ -106,6 +106,25 @@ void main() {
     expect(repo.calls, 2);
   });
 
+  test('loadMore 成功后短时间内重复触发被节流', () async {
+    repo.pages = [
+      [insJson()],
+      [designJson()],
+    ];
+    final c = makeContainer();
+    await c.listenForLoad();
+
+    await c.read(homeFeedProvider.notifier).loadMore();
+    // 紧接着再次触发（甩动场景），1 秒内被节流，不再发请求。
+    await c.read(homeFeedProvider.notifier).loadMore();
+
+    expect(repo.calls, 2);
+    expect(
+      c.read(homeFeedProvider).items.map((e) => e.bizId),
+      ['ins-1', 'design-1'],
+    );
+  });
+
   test('loadMore 失败保留已有数据且错误不影响主列表', () async {
     repo.pages = [
       [insJson()]

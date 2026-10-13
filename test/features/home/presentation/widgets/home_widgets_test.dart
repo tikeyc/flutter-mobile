@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intuly/core/theme/app_colors.dart';
 import 'package:intuly/features/home/data/models/feed_item.dart';
 import 'package:intuly/features/home/presentation/widgets/feed_card.dart';
-import 'package:intuly/features/home/presentation/widgets/feed_grid.dart';
 import 'package:intuly/features/home/presentation/widgets/home_bottom_nav.dart';
 import 'package:intuly/features/home/presentation/widgets/home_nav_bar.dart';
 
@@ -20,7 +20,7 @@ void main() {
   group('FeedCard', () {
     testWidgets('灵感图片卡：标题、tag、作者、点赞数', (tester) async {
       final card = parse(insJson(title: '现代工业多巴胺街头装置品'));
-      await tester.pumpWidget(wrap(FeedCard(item: card, width: 176)));
+      await tester.pumpWidget(wrap(SizedBox(width: 176, child: FeedCard(item: card))));
 
       expect(find.text('现代工业多巴胺街头装置品'), findsOneWidget);
       expect(find.text('景观'), findsOneWidget);
@@ -32,14 +32,14 @@ void main() {
     testWidgets('灵感视频卡显示播放角标', (tester) async {
       final card = parse(
           insJson(insType: '2', title: null, fileUrl: 'https://v.example/a.mp4'));
-      await tester.pumpWidget(wrap(FeedCard(item: card, width: 176)));
+      await tester.pumpWidget(wrap(SizedBox(width: 176, child: FeedCard(item: card))));
 
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     });
 
     testWidgets('模型卡：模型角标、价格、销量、金色星星', (tester) async {
       final card = parse(modelJson());
-      await tester.pumpWidget(wrap(FeedCard(item: card, width: 176)));
+      await tester.pumpWidget(wrap(SizedBox(width: 176, child: FeedCard(item: card))));
 
       expect(find.text('模型'), findsOneWidget);
       expect(find.text('南洋混合会所-pro'), findsOneWidget);
@@ -50,7 +50,7 @@ void main() {
 
     testWidgets('竞选卡：价格与参与数', (tester) async {
       final card = parse(designJson());
-      await tester.pumpWidget(wrap(FeedCard(item: card, width: 176)));
+      await tester.pumpWidget(wrap(SizedBox(width: 176, child: FeedCard(item: card))));
 
       expect(find.text('餐厅全案设计项目'), findsOneWidget);
       expect(find.text('广东省'), findsOneWidget);
@@ -60,29 +60,11 @@ void main() {
 
     testWidgets('好物卡：商品名、价格、店铺行', (tester) async {
       final card = parse(goodsJson());
-      await tester.pumpWidget(wrap(FeedCard(item: card, width: 176)));
+      await tester.pumpWidget(wrap(SizedBox(width: 176, child: FeedCard(item: card))));
 
       expect(find.text('商品名称商品名称'), findsOneWidget);
       expect(find.text('¥9999'), findsOneWidget);
       expect(find.text('店铺名称'), findsOneWidget);
-    });
-  });
-
-  group('FeedGrid', () {
-    testWidgets('多卡片渲染为两列且不溢出', (tester) async {
-      final items = [
-        parse(insJson()),
-        parse(modelJson()),
-        parse(designJson()),
-        parse(goodsJson()),
-      ];
-      await tester.pumpWidget(wrap(SingleChildScrollView(
-        child: FeedGrid(items: items),
-      )));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.byType(FeedCard), findsNWidgets(4));
     });
   });
 
@@ -102,6 +84,23 @@ void main() {
 
       await tester.tap(find.text('热门'));
       expect(selected, 3);
+    });
+
+    testWidgets('左上角汉堡按钮点击触发 onMenu', (tester) async {
+      var menuTapped = false;
+      await tester.pumpWidget(wrap(HomeNavBar(
+        tabs: const ['话题', '活动', '灵感', '热门'],
+        selected: 0,
+        onMenu: () => menuTapped = true,
+      )));
+
+      // 汉堡按钮位于最左侧，在搜索图标（行内第一个 SVG）之前。
+      final menuCenter = tester.getCenter(find.byIcon(Icons.menu));
+      final searchCenter = tester.getCenter(find.byType(SvgPicture).first);
+      expect(menuCenter.dx, lessThan(searchCenter.dx));
+
+      await tester.tap(find.byIcon(Icons.menu));
+      expect(menuTapped, true);
     });
 
     testWidgets('内容避开状态栏，背景延伸到状态栏后面', (tester) async {

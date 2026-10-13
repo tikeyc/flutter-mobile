@@ -11,9 +11,10 @@ double clampAspect(double ratio) => ratio.clamp(9 / 16, 16 / 9);
 
 /// 首页瀑布流卡片：图片区（按真实比例）+ 白底信息区（按卡片类型变化）。
 class FeedCard extends StatelessWidget {
-  const FeedCard({super.key, required this.item});
+  const FeedCard({super.key, required this.item, this.onTap});
 
   final FeedItem item;
+  final VoidCallback? onTap;
 
   static const double radius = 8;
 
@@ -23,22 +24,26 @@ class FeedCard extends StatelessWidget {
     return LayoutBuilder(builder: (context, constraints) {
       // 图片按列宽解码，避免整图解码浪费内存与耗时。
       final cacheWidth = (constraints.maxWidth * dpr).round();
-      return Container(
-        decoration: const BoxDecoration(
-          color: AppColors.bg1,
-          borderRadius: BorderRadius.all(Radius.circular(radius)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: clampAspect(item.aspectRatio),
-              child: _imageArea(cacheWidth),
-            ),
-            _infoArea(),
-          ],
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.bg1,
+            borderRadius: BorderRadius.all(Radius.circular(radius)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: clampAspect(item.aspectRatio),
+                child: _imageArea(cacheWidth),
+              ),
+              _infoArea(),
+            ],
+          ),
         ),
       );
     });

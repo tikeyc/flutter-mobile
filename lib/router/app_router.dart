@@ -4,20 +4,34 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/application/auth_providers.dart';
 import '../features/auth/presentation/login_page.dart';
+import '../features/demand_hall/demand_hall_page.dart';
+import '../features/home/feed_detail_page.dart';
 import '../features/home/home_page.dart';
+import '../features/home/inspiration_page.dart';
+import '../features/mall/mall_page.dart';
+import '../features/model_plaza/model_plaza_page.dart';
 
 class AppRoutes {
   AppRoutes._();
   static const login = '/login';
   static const home = '/home';
+  static const modelPlaza = '/model-plaza';
+  static const demandHall = '/demand-hall';
+  static const mall = '/mall';
+
+  /// 内容详情（顶层路由，盖住底部导航）。
+  static String feedDetail(String bizId) => '/feed/$bizId';
 }
 
-/// 路由守卫：未登录只能在 /login；已登录访问 /login 或根路径时去 /home。
+/// 路由守卫：已登录访问 /login 或根路径时去 /home；游客可浏览全部公开页面，
+/// 也可停留在 /login（登录入口），仅根路径去 /home。
 String? resolveRedirect({required bool loggedIn, required String location}) {
   final atLogin = location == AppRoutes.login;
-  if (!loggedIn) return atLogin ? null : AppRoutes.login;
-  if (atLogin || location == '/') return AppRoutes.home;
-  return null;
+  final atRoot = location == '/';
+  if (loggedIn) {
+    return atLogin || atRoot ? AppRoutes.home : null;
+  }
+  return atRoot ? AppRoutes.home : null;
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -34,7 +48,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ),
     routes: [
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginPage()),
-      GoRoute(path: AppRoutes.home, builder: (_, _) => const HomePage()),
+      GoRoute(
+        path: '/feed/:bizId',
+        builder: (_, state) =>
+            FeedDetailPage(bizId: state.pathParameters['bizId']!),
+      ),
+      // 有状态嵌套导航：各分支 Navigator 常驻，切 tab 与分支内跳转均保状态。
+      StatefulShellRoute.indexedStack(
+        builder: (_, _, StatefulNavigationShell navigationShell) =>
+            HomePage(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.home,
+                builder: (_, _) => const InspirationPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.modelPlaza,
+                builder: (_, _) => const ModelPlazaPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.demandHall,
+                builder: (_, _) => const DemandHallPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.mall,
+                builder: (_, _) => const MallPage(),
+              ),
+            ],
+          ),
+        ],
+      ),
     ],
   );
 

@@ -52,10 +52,7 @@ class HomeBottomNav extends StatelessWidget {
                 _tab(tabs[3], 3),
               ],
             ),
-            Positioned(
-              top: -8,
-              child: _centerButton(),
-            ),
+            Positioned(top: -8, child: _centerButton()),
           ],
         ),
       ),
@@ -91,6 +88,7 @@ class HomeBottomNav extends StatelessWidget {
   /// 中央 64px 圆形头像按钮（当前无用户头像数据，用占位）。
   Widget _centerButton() {
     return GestureDetector(
+      key: const Key('home-center-button'),
       onTap: onCenterTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -102,9 +100,10 @@ class HomeBottomNav extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xFFE8E8E8)),
         ),
-        child: const CircleAvatar(
+        child: CircleAvatar(
           backgroundColor: AppColors.border4,
-          child: Icon(Icons.person, size: 28, color: AppColors.text3),
+          // child: Icon(Icons.person, size: 28, color: AppColors.text3),
+          child: Image.asset('assets/images/logo/great-sage-ai-logo.png'),
         ),
       ),
     );

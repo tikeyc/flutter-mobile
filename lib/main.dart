@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'app.dart';
+import 'core/observers/provider_logger_observer.dart';
 import 'features/auth/application/auth_providers.dart';
 import 'features/auth/data/session_storage.dart';
 
@@ -13,6 +14,7 @@ Future<void> main() async {
   // read() 内部已兜底：存储损坏时返回 null，按未登录处理。
   final session = await storage.read();
   runApp(ProviderScope(
+    observers: [ProviderLoggerObserver()],
     overrides: [
       sessionStorageProvider.overrideWithValue(storage),
       initialSessionProvider.overrideWithValue(session),

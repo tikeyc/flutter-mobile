@@ -52,7 +52,8 @@ class _InspirationPageState extends ConsumerState<InspirationPage> {
           children: [
             FilledButton(
               onPressed: () => {
-                GoRouter.of(context).push(AppRoutes.feedDetail('1')),
+                GoRouter.of(context)
+                    .push('${AppRoutes.home}${AppRoutes.feedDetail('1')}'),
               },
               child: const Text('测试跳转详情'),
             ),

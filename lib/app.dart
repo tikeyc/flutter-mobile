@@ -10,6 +10,7 @@ class IntulyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
+      restorationScopeId: 'intuly-app',
       title: 'Intuly',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),

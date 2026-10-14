@@ -56,11 +56,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ),
     routes: [
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginPage()),
-      GoRoute(
-        path: '/feed/:bizId',
-        builder: (_, state) =>
-            FeedDetailPage(bizId: state.pathParameters['bizId']!),
-      ),
       // 有状态嵌套导航：各分支 Navigator 常驻，切 tab 与分支内跳转均保状态。
       StatefulShellRoute.indexedStack(
         builder: (_, _, StatefulNavigationShell navigationShell) =>
@@ -72,6 +67,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.home,
                 builder: (_, _) => const InspirationPage(),
+                routes: [
+                  GoRoute(
+                    // 子页面想要全屏显示(盖住底部导航栏):给该路由设置 parentNavigatorKey: _rootNavigatorKey,
+                    // 它会渲染到根 Navigator 上,而不在 shell 分支里;
+                    parentNavigatorKey: rootNavigatorKey,
+                    path: 'feed/:bizId',
+                    builder: (_, state) =>
+                        FeedDetailPage(bizId: state.pathParameters['bizId']!),
+                  ),
+                ],
               ),
             ],
           ),

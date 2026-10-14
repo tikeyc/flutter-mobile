@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,12 +35,19 @@ String? resolveRedirect({required bool loggedIn, required String location}) {
   return atRoot ? AppRoutes.home : null;
 }
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
+final GlobalKey<NavigatorState> sectionANavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'sectionANav');
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // 会话变化时通知 GoRouter 重新执行 redirect。
   final refresh = ValueNotifier<bool>(ref.read(authProvider) != null);
   ref.listen(authProvider, (_, next) => refresh.value = next != null);
 
   final router = GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.home,
     refreshListenable: refresh,
     redirect: (context, state) => resolveRedirect(
@@ -59,6 +67,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             HomePage(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(
+            navigatorKey: sectionANavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.home,

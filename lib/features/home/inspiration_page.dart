@@ -41,13 +41,21 @@ class _InspirationPageState extends ConsumerState<InspirationPage> {
 
   Widget _feedBody(HomeFeedState feed) {
     if (feed.loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
     if (feed.error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            FilledButton(
+              onPressed: () => {
+                GoRouter.of(context).push(AppRoutes.feedDetail('1')),
+              },
+              child: const Text('测试跳转详情'),
+            ),
             Text(feed.error!, style: const TextStyle(color: AppColors.text3)),
             const SizedBox(height: 12),
             FilledButton(

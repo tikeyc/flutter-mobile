@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intuly/core/network/api_exception.dart';
+import 'package:intuly/core/widgets/webview_page.dart';
 import 'package:intuly/features/auth/presentation/widgets/login_error_handler.dart';
 import 'package:intuly/features/auth/presentation/widgets/login_widgets.dart';
 
 Widget host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
+
+class _RouteRecorder extends NavigatorObserver {
+  int pushed = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => pushed++;
+}
 
 void main() {
   testWidgets('AgreementRow 点复选框回调取反值，并显示协议文案', (tester) async {
@@ -14,6 +23,26 @@ void main() {
     expect(changed, isTrue);
     expect(find.textContaining('《用户服务协议》', findRichText: true), findsOneWidget);
     expect(find.textContaining('《隐私政策》', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('点《用户服务协议》推入内置 WebView 页面', (tester) async {
+    final observer = _RouteRecorder();
+    await tester.pumpWidget(MaterialApp(
+      navigatorObservers: [observer],
+      home: Scaffold(body: Center(child: AgreementRow(agreed: false, onChanged: (_) {}))),
+    ));
+    final paragraph = tester.renderObject<RenderParagraph>(find.byType(RichText));
+    final text = paragraph.text.toPlainText();
+    const target = '《用户服务协议》';
+    final start = text.indexOf(target);
+    final box = paragraph
+        .getBoxesForSelection(
+            TextSelection(baseOffset: start, extentOffset: start + target.length))
+        .first;
+    final before = observer.pushed;
+    await tester.tapAt(paragraph.localToGlobal(box.toRect().center));
+    expect(observer.pushed, before + 1);
+    expect(find.byType(WebViewPage), findsNothing);
   });
 
   testWidgets('PrimaryLoginButton 禁用时不触发', (tester) async {

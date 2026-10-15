@@ -1,11 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../config/env_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/webview_page.dart';
 
 /// 输入框容器：高 44、底 #F9F9FA、描边 #F2F3F5（错误时红色）、圆角 12.8。
 class LoginInputBox extends StatelessWidget {
@@ -134,10 +134,10 @@ class AgreementRow extends StatefulWidget {
 }
 
 class _AgreementRowState extends State<AgreementRow> {
-  late final TapGestureRecognizer _userTap = TapGestureRecognizer()
-    ..onTap = () => _open(EnvConfig.userAgreementUrl);
-  late final TapGestureRecognizer _privacyTap = TapGestureRecognizer()
-    ..onTap = () => _open(EnvConfig.privacyPolicyUrl);
+  late final TapGestureRecognizer _userTap =
+      TapGestureRecognizer()..onTap = () => _open('用户服务协议', EnvConfig.userAgreementUrl);
+  late final TapGestureRecognizer _privacyTap =
+      TapGestureRecognizer()..onTap = () => _open('隐私政策', EnvConfig.privacyPolicyUrl);
 
   @override
   void dispose() {
@@ -146,9 +146,10 @@ class _AgreementRowState extends State<AgreementRow> {
     super.dispose();
   }
 
-  Future<void> _open(String url) async {
-    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    if (!ok && mounted) showLoginToast(context, '无法打开链接');
+  void _open(String title, String url) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => WebViewPage(title: title, url: url)),
+    );
   }
 
   @override

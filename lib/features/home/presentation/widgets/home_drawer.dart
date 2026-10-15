@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intuly/features/auth/application/auth_providers.dart';
+import 'package:intuly/router/app_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -26,10 +30,24 @@ class HomeDrawer extends StatelessWidget {
             const _Header(),
             const Divider(height: 1, thickness: 1, color: AppColors.border4),
             for (final (icon, label) in _items)
-              ListTile(
-                leading: Icon(icon, size: 22, color: AppColors.text2),
-                title: Text(label, style: AppTextStyles.body14),
-                onTap: () => Navigator.of(context).pop(),
+              Consumer(
+                builder: (context, ref, child) {
+                  return ListTile(
+                    leading: Icon(icon, size: 22, color: AppColors.text2),
+                    title: Text(label, style: AppTextStyles.body14),
+                    onTap: () => {
+                      if (label == '退出登录')
+                        {
+                          if (ref.read(authProvider) != null)
+                            {ref.read(authProvider.notifier).signOut()}
+                          else
+                            {GoRouter.of(context).push(AppRoutes.login)},
+                        }
+                      else
+                        {Navigator.of(context).pop()},
+                    },
+                  );
+                },
               ),
           ],
         ),
@@ -60,8 +78,10 @@ class _Header extends StatelessWidget {
               children: [
                 const Text('用户昵称', style: AppTextStyles.title16),
                 const SizedBox(height: 2),
-                Text('查看并编辑个人资料',
-                    style: AppTextStyles.body12.copyWith(color: AppColors.text3)),
+                Text(
+                  '查看并编辑个人资料',
+                  style: AppTextStyles.body12.copyWith(color: AppColors.text3),
+                ),
               ],
             ),
           ),

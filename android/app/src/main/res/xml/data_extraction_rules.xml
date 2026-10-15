@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Used on Android 12 (API 31) and higher; overrides backup_rules.xml there.
+   Same rationale as backup_rules.xml: flutter_secure_storage ciphertext is
+   bound to Android Keystore keys that cannot be exported, so it must not
+   travel via cloud backup or device-to-device transfer.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml"/>
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml"/>
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration.xml"/>
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:FlutterSecureStorage.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml"/>
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml"/>
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration.xml"/>
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:FlutterSecureStorage.xml"/>
+    </device-transfer>
+</data-extraction-rules>

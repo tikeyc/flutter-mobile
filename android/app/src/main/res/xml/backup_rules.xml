@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Used on Android 11 (API 30) and lower for Auto Backup.
+   flutter_secure_storage data is encrypted with device-bound Android Keystore
+   keys that cannot be exported, so restored copies would be permanently
+   undecryptable. Exclude it from backup; users simply re-authenticate after
+   a device migration.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml"/>
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml"/>
+    <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration.xml"/>
+    <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:FlutterSecureStorage.xml"/>
+</full-backup-content>

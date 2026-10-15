@@ -5,26 +5,36 @@ import 'package:intuly/features/home/application/home_providers.dart';
 import 'package:intuly/features/home/data/home_repository.dart';
 import 'package:intuly/features/home/data/models/feed_item.dart';
 
-import '../fixtures/hotlist_fixtures.dart';
+import '../fixtures/ins_page_fixtures.dart';
 /// 直接替换实现，避免走网络层。
 class FakeHomeRepository implements HomeRepository {
   List<List<Map<String, dynamic>>> pages = [];
+
+  /// 与 pages 一一对应；缺省或超出时按 true 处理。
+  List<bool> hasMoreFlags = [];
   int calls = 0;
   Object? error;
-  final List<bool> firstFlags = [];
+  final List<int> pageNumbers = [];
 
   @override
-  Future<List<FeedItem>> fetchHotList({required bool first}) async {
+  Future<InsPage> fetchInsPage({
+    required int pageNumber,
+    int pageSize = 20,
+    String venueType = '全部',
+  }) async {
     calls++;
-    firstFlags.add(first);
+    pageNumbers.add(pageNumber);
     if (error != null) throw error!;
     // 调用次数超出预设页数时复用最后一页。
-    final page = pages.isEmpty
-        ? <Map<String, dynamic>>[]
-        : pages[calls <= pages.length ? calls - 1 : pages.length - 1];
-    return page
-        .map((e) => FeedItem.fromJson(e))
-        .toList();
+    final index = calls <= pages.length ? calls - 1 : pages.length - 1;
+    final page = pages.isEmpty ? <Map<String, dynamic>>[] : pages[index];
+    final hasMore = hasMoreFlags.isEmpty
+        ? true
+        : hasMoreFlags[calls <= hasMoreFlags.length ? calls - 1 : hasMoreFlags.length - 1];
+    return InsPage(
+      items: page.map((e) => FeedItem.fromJson(e)).toList(),
+      hasMore: hasMore,
+    );
   }
 }
 
@@ -42,16 +52,17 @@ void main() {
     repo = FakeHomeRepository();
   });
 
-  test('build 时自动加载首页数据（first=true）', () async {
+  test('build 时自动加载首页数据（pageNumber=2）', () async {
     repo.pages = [
       [insJson(), modelJson()]
     ];
     final c = makeContainer();
     final state = await c.listenForLoad();
     expect(state.items, hasLength(2));
-    expect(repo.firstFlags, [true]);
+    expect(repo.pageNumbers, [2]);
     expect(state.loading, isFalse);
     expect(state.error, isNull);
+    expect(state.hasMore, isTrue);
   });
 
   test('首次加载失败进入 error 状态，retry 成功恢复', () async {
@@ -87,8 +98,24 @@ void main() {
 
     final state = c.read(homeFeedProvider);
     expect(state.items.map((e) => e.bizId), ['ins-1', 'model-1', 'design-1']);
-    expect(repo.firstFlags, [true, false]);
+    expect(repo.pageNumbers, [2, 3]);
     expect(state.loadingMore, isFalse);
+  });
+
+  test('hasMore 为 false 后再上拉不发请求', () async {
+    repo.pages = [
+      [insJson()],
+      [designJson()],
+    ];
+    repo.hasMoreFlags = [false];
+    final c = makeContainer();
+    final state1 = await c.listenForLoad();
+    expect(state1.hasMore, isFalse);
+
+    await c.read(homeFeedProvider.notifier).loadMore();
+
+    expect(repo.calls, 1);
+    expect(c.read(homeFeedProvider).items, hasLength(1));
   });
 
   test('首次已加载时再 loadMore，重复触发不会并发请求', () async {

@@ -12,7 +12,7 @@ import 'package:intuly/router/app_router.dart';
 
 import '../../helpers/fake_auth_repository.dart';
 import '../../helpers/in_memory_session_storage.dart';
-import 'fixtures/hotlist_fixtures.dart';
+import 'fixtures/ins_page_fixtures.dart';
 
 /// 顺序返回预设页，避免走网络层。
 class FakeHomeRepository implements HomeRepository {
@@ -22,10 +22,17 @@ class FakeHomeRepository implements HomeRepository {
   int calls = 0;
 
   @override
-  Future<List<FeedItem>> fetchHotList({required bool first}) async {
+  Future<InsPage> fetchInsPage({
+    required int pageNumber,
+    int pageSize = 20,
+    String venueType = '全部',
+  }) async {
     final page = pages[calls < pages.length ? calls : pages.length - 1];
     calls++;
-    return page.map((e) => FeedItem.fromJson(e)).toList();
+    return InsPage(
+      items: page.map((e) => FeedItem.fromJson(e)).toList(),
+      hasMore: true,
+    );
   }
 }
 

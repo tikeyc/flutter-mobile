@@ -20,7 +20,7 @@ class AppRoutes {
   static const mall = '/mall';
 
   /// 内容详情（顶层路由，盖住底部导航）。
-  static String feedDetail(String bizId) => '/feed/$bizId';
+  static String feedDetail(String bizId) => '${AppRoutes.home}/feed/$bizId';
 }
 
 /// 路由守卫：已登录访问 /login 或根路径时去 /home；游客可浏览全部公开页面，

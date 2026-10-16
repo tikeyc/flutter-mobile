@@ -32,9 +32,9 @@ class DioHomeRepository implements HomeRepository {
   }) async {
     Response<Map<String, dynamic>> res;
     try {
-      res = await _dio.get<Map<String, dynamic>>(
+      res = await _dio.post<Map<String, dynamic>>(
         '/cms/home/insPage',
-        queryParameters: {
+        data: {
           'pageNumber': pageNumber,
           'pageSize': pageSize,
           'venueType': venueType,
@@ -52,7 +52,9 @@ class DioHomeRepository implements HomeRepository {
     final records = page['records'];
     if (records is! List) {
       throw ApiException(
-          status: body['status'] as int?, message: '获取首页数据失败，请重试');
+        status: body['status'] as int?,
+        message: '获取首页数据失败，请重试',
+      );
     }
     // 逐项容错：单条脏数据跳过，不拖垮整页 feed。
     final items = <FeedItem>[];

@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "intuly (Chrome 免跨域)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "args": [
+        "-d", "chrome",
+        "--web-browser-flag", "--disable-web-security"
+      ]
+    }
+  ]
+}

@@ -17,7 +17,10 @@ export PATH="/d/flutter/bin:$PATH"
 | 全部测试 | `flutter test` |
 | 单个测试 | `flutter test test/features/auth/data/auth_repository_test.dart` |
 | 运行 | `flutter run`（常用模拟器 `emulator-5554`；adb 在 `C:\Users\WIN11\AppData\Local\Android\sdk\platform-tools`） |
+| Web 调试 | `flutter run -d chrome --web-browser-flag="--disable-web-security"`（必须带 flag，原因见下） |
 | 构建 | `flutter build apk` |
+
+**Web 调试注意**：API 网关（intuly.com）会拒绝所有 OPTIONS 预检请求且不返回任何 CORS 响应头，浏览器会把带自定义 header（`AI-Api-ClientId` 等）的跨域请求直接拦截，表现为「网络错误，请稍后重试」；Android/iOS 原生 HTTP 无 CORS 概念，不受影响。因此 Web 端调试必须用上面的 flag 启动浏览器（仅本地开发用）。若未来正式发布 Web 版，需后端补 CORS 响应头或与 API 同域部署。
 
 **分析器注意**：项目启用了 riverpod_lint 3.1.x（Dart 原生 analyzer 插件，无 custom_lint）。其诊断只在 `dart analyze` 和 IDE 中出现，`flutter analyze` 不加载该插件。校验 lint 一律用 `dart analyze`。升级 flutter_riverpod 时需同步更新两处 riverpod_lint 约束（pubspec dev_dependencies + analysis_options `plugins:`）。
 

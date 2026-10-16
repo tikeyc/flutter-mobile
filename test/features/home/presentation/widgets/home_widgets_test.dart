@@ -7,7 +7,7 @@ import 'package:intuly/features/home/presentation/widgets/feed_card.dart';
 import 'package:intuly/features/home/presentation/widgets/home_bottom_nav.dart';
 import 'package:intuly/features/home/presentation/widgets/home_nav_bar.dart';
 
-import '../../fixtures/hotlist_fixtures.dart';
+import '../../fixtures/ins_page_fixtures.dart';
 
 FeedItem parse(Map<String, dynamic> json) => FeedItem.fromJson(json);
 

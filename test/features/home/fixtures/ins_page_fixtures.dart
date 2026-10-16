@@ -1,4 +1,27 @@
-/// 首页 hotList 的测试数据构造器（真实接口响应结构）。
+/// insPage 分页响应：{status, message, data:{records, total, size, current, pages}}。
+Map<String, dynamic> insPageJson({
+  List<Map<String, dynamic>> records = const [],
+  int total = 0,
+  int size = 20,
+  int current = 1,
+  int pages = 1,
+  int status = 200,
+  String message = '操作成功',
+}) {
+  return {
+    'status': status,
+    'message': message,
+    'data': {
+      'records': records,
+      'total': total,
+      'size': size,
+      'current': current,
+      'pages': pages,
+    },
+  };
+}
+
+/// 首页 insPage 单条卡片的测试数据构造器（真实接口响应结构）。
 Map<String, dynamic> insJson({
   String? insType = '1',
   String? title = '灵感标题',

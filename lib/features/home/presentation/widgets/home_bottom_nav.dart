@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 
 /// 首页底部导航：灵感社区·模型广场·[中央头像按钮]·需求大厅·好物商城。
 /// 白底 + 向上阴影，中央按钮上凸 8px；tab 为纯文字。
+/// 中央按钮进入 AI 修图页（路由第 5 分支，激活时外壳隐藏本导航）。
 class HomeBottomNav extends StatelessWidget {
   const HomeBottomNav({
     super.key,
@@ -11,6 +12,7 @@ class HomeBottomNav extends StatelessWidget {
     required this.selected,
     this.onTabSelected,
     this.onCenterTap,
+    this.onCenterLongPress,
   });
 
   /// 顺序：左1、左2、右2、右1（中间头像按钮不计入 index）。
@@ -18,6 +20,7 @@ class HomeBottomNav extends StatelessWidget {
   final int selected;
   final ValueChanged<int>? onTabSelected;
   final VoidCallback? onCenterTap;
+  final VoidCallback? onCenterLongPress;
 
   static const double contentHeight = 56;
 
@@ -90,6 +93,7 @@ class HomeBottomNav extends StatelessWidget {
     return GestureDetector(
       key: const Key('home-center-button'),
       onTap: onCenterTap,
+      onLongPress: onCenterLongPress,
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: 64,

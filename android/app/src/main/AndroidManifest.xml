@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 相册选图（wechat_assets_picker / photo_manager）：API 33+ 用细分媒体权限，低版本回退 READ_EXTERNAL_STORAGE。 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- 拍照（image_picker 相机）。 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="intuly"
         android:name="${applicationName}"

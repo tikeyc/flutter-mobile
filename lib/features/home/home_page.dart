@@ -43,17 +43,26 @@ class HomePage extends ConsumerWidget {
         backgroundColor: AppColors.bg2,
         drawer: const HomeDrawer(),
         body: navigationShell,
-        bottomNavigationBar: HomeBottomNav(
-          tabs: _bottomTabs,
-          selected: navigationShell.currentIndex,
-          onTabSelected: (i) => navigationShell.goBranch(
-            i,
-            // 重复点当前 tab：回到该分支根页面。
-            initialLocation: i == navigationShell.currentIndex,
-          ),
-          // 调试期临时：长按中央按钮退出登录（正式「我的」页完成后移除）。
-          onCenterTap: () => ref.read(authProvider.notifier).signOut(),
-        ),
+        // 修图分支全屏展示自带工具栏，隐藏底部导航。
+        bottomNavigationBar: navigationShell.currentIndex == 4
+            ? null
+            : HomeBottomNav(
+                tabs: _bottomTabs,
+                selected: navigationShell.currentIndex,
+                onTabSelected: (i) => navigationShell.goBranch(
+                  i,
+                  // 重复点当前 tab：回到该分支根页面。
+                  initialLocation: i == navigationShell.currentIndex,
+                ),
+                onCenterTap: () => navigationShell.goBranch(
+                  4,
+                  // 重复点中央按钮：回到修图分支根页面。
+                  initialLocation: navigationShell.currentIndex == 4,
+                ),
+                // 调试期临时：长按中央按钮退出登录（正式「我的」页完成后移除）。
+                onCenterLongPress: () =>
+                    ref.read(authProvider.notifier).signOut(),
+              ),
       ),
     );
   }

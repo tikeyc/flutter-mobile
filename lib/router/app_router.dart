@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/application/auth_providers.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/demand_hall/demand_hall_page.dart';
+import '../features/editor/presentation/editor_page.dart';
 import '../features/home/feed_detail_page.dart';
 import '../features/home/home_page.dart';
 import '../features/home/inspiration_page.dart';
@@ -18,6 +19,9 @@ class AppRoutes {
   static const modelPlaza = '/model-plaza';
   static const demandHall = '/demand-hall';
   static const mall = '/mall';
+
+  /// AI 修图页（底部导航中央按钮进入，第 5 个分支）。
+  static const editor = '/editor';
 
   /// 内容详情（顶层路由，盖住底部导航）。
   static String feedDetail(String bizId) => '${AppRoutes.home}/feed/$bizId';
@@ -100,6 +104,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.mall,
                 builder: (_, _) => const MallPage(),
+              ),
+            ],
+          ),
+          // 第 5 个分支：AI 修图页（底部导航中央按钮，index 4）。
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.editor,
+                builder: (context, _) => EditorPage(
+                  onClose: () => context.go(AppRoutes.home),
+                ),
               ),
             ],
           ),

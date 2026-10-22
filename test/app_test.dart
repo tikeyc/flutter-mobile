@@ -57,8 +57,8 @@ void main() {
     expect(find.text('话题'), findsOneWidget);
     expect(find.text('灵感社区'), findsOneWidget);
 
-    // 点击底部导航中央头像按钮退出登录。
-    await tester.tap(find.byKey(const Key('home-center-button')));
+    // 长按底部导航中央头像按钮退出登录（调试期临时手势）。
+    await tester.longPress(find.byKey(const Key('home-center-button')));
     await tester.pumpAndSettle();
     expect(storage.value, isNull);
     // 游客态仍停留在首页浏览。

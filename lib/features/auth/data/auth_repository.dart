@@ -4,12 +4,13 @@ import '../../../core/network/api_exception.dart';
 import 'models/slide_challenge.dart';
 
 abstract class AuthRepository {
-  Future<SlideChallenge> fetchSlide(String loginUser);
+  Future<SlideChallenge> fetchSlide(String loginUser, {CancelToken? cancelToken});
 
   Future<SlideCheckResult> checkSlide({
     required String loginUser,
     required String captchaId,
     required int moveWidth,
+    CancelToken? cancelToken,
   });
 
   /// 返回后续登录要用的 loginSlide。
@@ -38,9 +39,14 @@ class DioAuthRepository implements AuthRepository {
   DioAuthRepository(this._dio);
 
   /// 统一 POST：DioException 转成 ApiException，返回 body Map。
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> _post(
+    String path,
+    Map<String, dynamic> data, {
+    CancelToken? cancelToken,
+  }) async {
     try {
-      final res = await _dio.post<Map<String, dynamic>>(path, data: data);
+      final res = await _dio.post<Map<String, dynamic>>(path,
+          data: data, cancelToken: cancelToken);
       return res.data ?? const {};
     } on DioException catch (e) {
       final err = e.error;
@@ -49,11 +55,11 @@ class DioAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<SlideChallenge> fetchSlide(String loginUser) async {
+  Future<SlideChallenge> fetchSlide(String loginUser, {CancelToken? cancelToken}) async {
     final body = await _post('/login/ai/slide', {
       'loginUser': loginUser,
       'smsType': _smsTypeLogin,
-    });
+    }, cancelToken: cancelToken);
     final data = body['data'];
     if (data is! Map<String, dynamic>) {
       throw ApiException(status: body['status'] as int?, message: '获取滑块失败，请重试');
@@ -70,13 +76,14 @@ class DioAuthRepository implements AuthRepository {
     required String loginUser,
     required String captchaId,
     required int moveWidth,
+    CancelToken? cancelToken,
   }) async {
     final body = await _post('/login/ai/checkSlide', {
       'loginUser': loginUser,
       'imgCaptchaId': captchaId,
       'moveWidth': moveWidth.toString(),
       'smsType': _smsTypeLogin,
-    });
+    }, cancelToken: cancelToken);
     final data = body['data'] as Map<String, dynamic>? ?? const {};
     return SlideCheckResult(
       passed: data['checkResult'] == true,

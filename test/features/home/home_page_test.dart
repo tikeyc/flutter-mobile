@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -26,6 +27,7 @@ class FakeHomeRepository implements HomeRepository {
     required int pageNumber,
     int pageSize = 20,
     String venueType = '全部',
+    CancelToken? cancelToken,
   }) async {
     final page = pages[calls < pages.length ? calls : pages.length - 1];
     calls++;

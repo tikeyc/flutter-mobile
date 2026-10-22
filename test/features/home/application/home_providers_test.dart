@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intuly/core/network/api_exception.dart';
@@ -15,14 +16,17 @@ class FakeHomeRepository implements HomeRepository {
   int calls = 0;
   Object? error;
   final List<int> pageNumbers = [];
+  final List<CancelToken?> cancelTokens = [];
 
   @override
   Future<InsPage> fetchInsPage({
     required int pageNumber,
     int pageSize = 20,
     String venueType = '全部',
+    CancelToken? cancelToken,
   }) async {
     calls++;
+    cancelTokens.add(cancelToken);
     pageNumbers.add(pageNumber);
     if (error != null) throw error!;
     // 调用次数超出预设页数时复用最后一页。
@@ -170,6 +174,19 @@ void main() {
     repo.pages.add([designJson()]);
     await c.read(homeFeedProvider.notifier).loadMore();
     expect(c.read(homeFeedProvider).items, hasLength(2));
+  });
+
+  test('加载请求携带 CancelToken，容器销毁时取消', () async {
+    repo.pages = [
+      [insJson()]
+    ];
+    final c = ProviderContainer(
+        overrides: [homeRepoProvider.overrideWithValue(repo)]);
+    await c.listenForLoad();
+
+    expect(repo.cancelTokens.single, isNotNull);
+    c.dispose();
+    expect(repo.cancelTokens.single!.isCancelled, isTrue);
   });
 
   test('加载失败错误信息来自 ApiException', () async {

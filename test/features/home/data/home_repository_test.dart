@@ -20,7 +20,7 @@ void main() {
   RequestOptions lastRequest() => adapter.requests.last;
 
   group('fetchInsPage', () {
-    test('GET /cms/home/insPage 带分页与 venueType 参数，解析 records', () async {
+    test('POST /cms/home/insPage 带分页与 venueType 参数，解析 records', () async {
       adapter.on(
         '/cms/home/insPage',
         body: insPageJson(
@@ -33,9 +33,9 @@ void main() {
 
       final page = await repo.fetchInsPage(pageNumber: 2);
 
-      expect(lastRequest().method, 'GET');
+      expect(lastRequest().method, 'POST');
       expect(lastRequest().path, '/cms/home/insPage');
-      expect(lastRequest().queryParameters,
+      expect(lastRequest().data,
           {'pageNumber': 2, 'pageSize': 20, 'venueType': '全部'});
       expect(page.items, hasLength(1));
       expect(page.items.first.bizId, 'ins-1');
@@ -47,8 +47,35 @@ void main() {
 
       await repo.fetchInsPage(pageNumber: 3, pageSize: 10, venueType: '景观');
 
-      expect(lastRequest().queryParameters,
+      expect(lastRequest().data,
           {'pageNumber': 3, 'pageSize': 10, 'venueType': '景观'});
+    });
+
+    test('只读请求标记 retryable，供重试拦截器识别', () async {
+      adapter.on('/cms/home/insPage', body: insPageJson());
+
+      await repo.fetchInsPage(pageNumber: 2);
+
+      expect(lastRequest().extra['retryable'], isTrue);
+    });
+
+    test('cancelToken 透传到请求', () async {
+      adapter.on('/cms/home/insPage', body: insPageJson(records: [insJson()]));
+      final token = CancelToken();
+
+      await repo.fetchInsPage(pageNumber: 2, cancelToken: token);
+
+      expect(lastRequest().cancelToken, same(token));
+    });
+
+    test('已取消的 token 抛“请求已取消”', () async {
+      final token = CancelToken()..cancel('关闭页面');
+
+      await expectLater(
+        repo.fetchInsPage(pageNumber: 2, cancelToken: token),
+        throwsA(isA<ApiException>()
+            .having((e) => e.message, 'message', '请求已取消')),
+      );
     });
 
     test('current 到达 pages 时 hasMore 为 false', () async {

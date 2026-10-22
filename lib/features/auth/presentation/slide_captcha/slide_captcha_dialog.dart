@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -47,6 +48,9 @@ class _SlideCaptchaDialogState extends ConsumerState<SlideCaptchaDialog> {
   String _trackText = _hint;
   Timer? _resetTimer;
 
+  /// 弹窗级取消令牌，关闭时取消未完成的滑块请求。
+  final CancelToken _cancelToken = CancelToken();
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +60,7 @@ class _SlideCaptchaDialogState extends ConsumerState<SlideCaptchaDialog> {
   @override
   void dispose() {
     _resetTimer?.cancel();
+    _cancelToken.cancel('弹窗关闭');
     super.dispose();
   }
 
@@ -72,7 +77,9 @@ class _SlideCaptchaDialogState extends ConsumerState<SlideCaptchaDialog> {
 
   Future<void> _fetch() async {
     try {
-      final c = await ref.read(authRepoProvider).fetchSlide(widget.loginUser);
+      final c = await ref
+          .read(authRepoProvider)
+          .fetchSlide(widget.loginUser, cancelToken: _cancelToken);
       if (!mounted) return;
       setState(() {
         _challenge = c;
@@ -96,6 +103,7 @@ class _SlideCaptchaDialogState extends ConsumerState<SlideCaptchaDialog> {
             loginUser: widget.loginUser,
             captchaId: c.captchaId,
             moveWidth: g.moveWidthFor(_offset),
+            cancelToken: _cancelToken,
           );
       if (!mounted) return;
       if (r.passed && r.loginSlide != null) {

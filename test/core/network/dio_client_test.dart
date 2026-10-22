@@ -25,6 +25,62 @@ void main() {
   Matcher apiError(int status) => isA<DioException>().having(
       (e) => e.error, 'error', isA<ApiException>().having((a) => a.status, 'status', status));
 
+  test('三种超时按教程典型值配置', () {
+    expect(dio.options.connectTimeout, const Duration(seconds: 10));
+    expect(dio.options.sendTimeout, const Duration(seconds: 15));
+    expect(dio.options.receiveTimeout, const Duration(seconds: 15));
+  });
+
+  group('重试', () {
+    test('retryable POST 遇网络错误自动重试并成功', () async {
+      adapter.on('/feed', body: {'status': 200, 'data': 'ok'});
+      adapter.failNext('/feed');
+      await dio.post<Object?>('/feed',
+          options: Options(extra: {'retryable': true}));
+      expect(adapter.requests, hasLength(2));
+    });
+
+    test('普通 POST 网络错误不重试', () async {
+      adapter.on('/feed', body: {'status': 200, 'data': 'ok'});
+      adapter.failNext('/feed');
+      await expectLater(dio.post<Object?>('/feed'), throwsA(isA<DioException>()));
+      expect(adapter.requests, hasLength(1));
+    });
+
+    test('GET 默认重试', () async {
+      adapter.on('/feed', body: {'status': 200, 'data': 'ok'});
+      adapter.failNext('/feed');
+      await dio.get<Object?>('/feed');
+      expect(adapter.requests, hasLength(2));
+    });
+
+    test('HTTP 4xx 不重试', () async {
+      adapter.on('/feed', httpStatus: 400, body: {'message': 'bad'});
+      await expectLater(dio.get<Object?>('/feed'), throwsA(isA<DioException>()));
+      expect(adapter.requests, hasLength(1));
+    });
+
+    test('重试上限 2 次，之后抛出错误', () async {
+      adapter.on('/feed', body: {'status': 200, 'data': 'ok'});
+      adapter.failNext('/feed');
+      adapter.failNext('/feed');
+      adapter.failNext('/feed');
+      await expectLater(
+        dio.get<Object?>('/feed'),
+        throwsA(isA<DioException>()),
+      );
+      expect(adapter.requests, hasLength(3));
+    });
+
+    test('重试成功的请求最终结果正确', () async {
+      adapter.on('/feed', body: {'status': 200, 'data': 'ok'});
+      adapter.failNext('/feed');
+      final res = await dio.post<Map<String, dynamic>>('/feed',
+          options: Options(extra: {'retryable': true}));
+      expect(res.data!['data'], 'ok');
+    });
+  });
+
   test('带公共 header，未登录时不带 Authorization', () async {
     adapter.on('/ping', body: {'status': 200, 'data': 'ok'});
     await dio.post<Object?>('/ping');

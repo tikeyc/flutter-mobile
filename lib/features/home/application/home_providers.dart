@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
@@ -46,6 +47,9 @@ class HomeFeedState {
 class HomeFeedNotifier extends Notifier<HomeFeedState> {
   bool _disposed = false;
 
+  /// 页面级取消令牌，销毁时取消所有未完成请求。
+  final CancelToken _cancelToken = CancelToken();
+
   /// 接口约定首页从第 2 页开始请求。
   static const int _firstPage = 2;
   int _nextPage = _firstPage;
@@ -56,7 +60,10 @@ class HomeFeedNotifier extends Notifier<HomeFeedState> {
 
   @override
   HomeFeedState build() {
-    ref.onDispose(() => _disposed = true);
+    ref.onDispose(() {
+      _disposed = true;
+      _cancelToken.cancel('页面销毁');
+    });
     Future.microtask(loadInitial);
     return const HomeFeedState(loading: true);
   }
@@ -66,8 +73,9 @@ class HomeFeedNotifier extends Notifier<HomeFeedState> {
     _nextPage = _firstPage;
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final page =
-          await ref.read(homeRepoProvider).fetchInsPage(pageNumber: _nextPage);
+      final page = await ref
+          .read(homeRepoProvider)
+          .fetchInsPage(pageNumber: _nextPage, cancelToken: _cancelToken);
       if (_disposed) return;
       _nextPage++;
       state = state.copyWith(
@@ -96,8 +104,9 @@ class HomeFeedNotifier extends Notifier<HomeFeedState> {
     }
     state = state.copyWith(loadingMore: true);
     try {
-      final page =
-          await ref.read(homeRepoProvider).fetchInsPage(pageNumber: _nextPage);
+      final page = await ref
+          .read(homeRepoProvider)
+          .fetchInsPage(pageNumber: _nextPage, cancelToken: _cancelToken);
       if (_disposed) return;
       _lastLoadMoreAt = DateTime.now();
       _nextPage++;

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:intuly/core/network/api_exception.dart';
 import 'package:intuly/features/auth/data/auth_repository.dart';
 import 'package:intuly/features/auth/data/models/slide_challenge.dart';
@@ -19,7 +20,7 @@ class FakeAuthRepository implements AuthRepository {
   String token = 'tk-fake';
 
   @override
-  Future<SlideChallenge> fetchSlide(String loginUser) async {
+  Future<SlideChallenge> fetchSlide(String loginUser, {CancelToken? cancelToken}) async {
     fetchCount++;
     fetchUsers.add(loginUser);
     if (fetchError != null) throw fetchError!;
@@ -31,6 +32,7 @@ class FakeAuthRepository implements AuthRepository {
     required String loginUser,
     required String captchaId,
     required int moveWidth,
+    CancelToken? cancelToken,
   }) async {
     checkedMoveWidths.add(moveWidth);
     return checkResults.isEmpty

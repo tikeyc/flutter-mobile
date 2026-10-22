@@ -40,7 +40,7 @@ lib/
 ├── main.dart                 # 启动前先读会话，override initialSessionProvider，首帧即定路由避免闪屏
 ├── config/env_config.dart    # baseUrl、clientId 等常量（目前所有环境共用）
 ├── core/
-│   ├── network/              # createDio() + ApiException
+│   ├── network/              # createDio() 装配 + ApiException + interceptors/（认证/拆包/错误/重试/日志）
 │   └── theme/                # AppColors / AppTextStyles / AppIcons / AppTheme
 ├── features/<feature>/
 │   ├── data/                 # Repository（抽象类 + Dio 实现）、models（手写 fromJson）
@@ -52,6 +52,10 @@ lib/
 关键约定：
 
 - **业务状态码在响应 body 的 `status` 字段**，不是 HTTP 状态码。Dio 拦截器统一处理：body.status 非 2xx 抛 `DioException`（error 为 `ApiException`）；401/405/409 触发 `onUnauthorized`（只触发一次，signOut 回登录页）。Repository 层把 `DioException` 转成 `ApiException` 再抛。
+- **拦截器注册顺序**：auth → envelope（body.status 拆包）→ error（DioException 映射 ApiException）→ retry → debugLog。错误文案统一由 `ApiException.fromDio` 映射（优先级：body.status > HTTP 状态码 > DioExceptionType）。
+- **重试**：仅幂等请求（GET/HEAD/OPTIONS/PUT/DELETE）或显式 `extra['retryable'] = true` 的只读请求（如首页 insPage）在连接/发送/接收超时、连接错误时重试 2 次；写操作（登录、发短信）不重试。
+- **取消**：页面级请求持有 `CancelToken`（Notifier onDispose / 弹窗 dispose 时 cancel）；Repository 方法的可选 `cancelToken` 参数一路透传到 dio。
+- **日志**：仅 kDebugMode 注册 DebugLogInterceptor，Authorization、密码、验证码、token 等敏感字段自动打码。
 - **依赖注入**：provider 构造期不 watch 可能回调自己的 provider（如 dioProvider 内惰性 `read` authProvider 避免循环依赖）；可替换点抽成 Provider（`httpClientAdapterProvider`、`sessionStorageProvider`、`slideVerifierProvider`），测试时 override。
 - **Token 只存 flutter_secure_storage**（Android Keystore / iOS Keychain），禁止明文存储。
 - 私有构造 + 静态常量的 token 类（`AppColors._()` 等）承载设计常量；公共 API 写中文 `///` 文档注释。

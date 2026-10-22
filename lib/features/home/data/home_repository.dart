@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/network/interceptors/retry_interceptor.dart';
 import 'models/feed_item.dart';
 
 /// insPage 的一页结果。
@@ -17,6 +18,7 @@ abstract class HomeRepository {
     required int pageNumber,
     int pageSize = 20,
     String venueType = '全部',
+    CancelToken? cancelToken,
   });
 }
 
@@ -29,9 +31,11 @@ class DioHomeRepository implements HomeRepository {
     required int pageNumber,
     int pageSize = 20,
     String venueType = '全部',
+    CancelToken? cancelToken,
   }) async {
     Response<Map<String, dynamic>> res;
     try {
+      // 只读查询，允许 RetryInterceptor 在网络错误时重试。
       res = await _dio.post<Map<String, dynamic>>(
         '/cms/home/insPage',
         data: {
@@ -39,6 +43,8 @@ class DioHomeRepository implements HomeRepository {
           'pageSize': pageSize,
           'venueType': venueType,
         },
+        cancelToken: cancelToken,
+        options: Options(extra: {RetryInterceptor.retryableExtraKey: true}),
       );
     } on DioException catch (e) {
       final err = e.error;

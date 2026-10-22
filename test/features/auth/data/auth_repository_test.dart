@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intuly/core/network/api_exception.dart';
 import 'package:intuly/core/network/dio_client.dart';
@@ -23,6 +24,24 @@ void main() {
     final c = await repo.fetchSlide('13800000000');
     expect(body(), {'loginUser': '13800000000', 'smsType': 1});
     expect(c.captchaId, 'cap-1');
+  });
+
+  test('fetchSlide 透传 cancelToken', () async {
+    adapter.on('/login/ai/slide', body: {'status': 200, 'data': slideJson()});
+    final token = CancelToken();
+    await repo.fetchSlide('13800000000', cancelToken: token);
+    expect(adapter.requests.single.cancelToken, same(token));
+  });
+
+  test('checkSlide 透传 cancelToken', () async {
+    adapter.on('/login/ai/checkSlide', body: {
+      'status': 200,
+      'data': {'checkResult': true, 'loginSlide': 'ls-1', 'errorCnt': 0},
+    });
+    final token = CancelToken();
+    await repo.checkSlide(
+        loginUser: 'u', captchaId: 'cap-1', moveWidth: 200, cancelToken: token);
+    expect(adapter.requests.single.cancelToken, same(token));
   });
 
   test('fetchSlide 数据不完整时抛 ApiException', () async {

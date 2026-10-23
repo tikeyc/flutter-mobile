@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_drawing_board/flutter_drawing_board.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_icons.dart';
@@ -30,7 +30,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   static const double _maxExportRatio = 4.0;
 
   DrawingController _controller = DrawingController();
-  ProviderSubscription<String?>? _imageSub;
+  ProviderSubscription<XFile?>? _imageSub;
 
   ui.Image? _image;
   String? _loadedPath;
@@ -42,13 +42,13 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   void initState() {
     super.initState();
     _imageSub = ref.listenManual(
-      editorProvider.select((s) => s.imagePath),
+      editorProvider.select((s) => s.image),
       (_, next) {
         if (next != null) _loadImage(next);
       },
     );
-    final path = ref.read(editorProvider).imagePath;
-    if (path != null) _loadImage(path);
+    final image = ref.read(editorProvider).image;
+    if (image != null) _loadImage(image);
   }
 
   @override
@@ -58,11 +58,11 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     super.dispose();
   }
 
-  Future<void> _loadImage(String path) async {
+  Future<void> _loadImage(XFile file) async {
     setState(() => _decoding = true);
     ui.Image? image;
     try {
-      final bytes = await File(path).readAsBytes();
+      final bytes = await file.readAsBytes();
       final codec = await ui.instantiateImageCodec(bytes);
       image = (await codec.getNextFrame()).image;
     } catch (_) {
@@ -73,7 +73,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       return;
     }
     // 解码期间用户已换图：丢弃过期结果，交给最新一次加载。
-    if (ref.read(editorProvider).imagePath != path) {
+    if (ref.read(editorProvider).image != file) {
       image?.dispose();
       return;
     }
@@ -88,7 +88,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     setState(() {
       _controller = DrawingController();
       _image = image;
-      _loadedPath = path;
+      _loadedPath = file.path;
       _decoding = false;
     });
     // 旧画布子树在本帧结束后才卸载，届时再释放旧 controller。
@@ -161,7 +161,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       body: Column(
         children: [
           _navBar(),
-          Expanded(child: _imageArea(context, state.imagePath)),
+          Expanded(child: _imageArea(context)),
           _generateButton(),
           ListenableBuilder(
             listenable: _controller,
@@ -232,7 +232,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     );
   }
 
-  Widget _imageArea(BuildContext context, String? imagePath) {
+  Widget _imageArea(BuildContext context) {
     final image = _image;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -357,7 +357,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   }
 
   Future<void> _showPickSheet(BuildContext context) async {
-    final picked = await showModalBottomSheet<String>(
+    final picked = await showModalBottomSheet<XFile>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: Column(
@@ -367,11 +367,11 @@ class _EditorPageState extends ConsumerState<EditorPage> {
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('从相册选择'),
               onTap: () async {
-                final path = await ref
+                final image = await ref
                     .read(imagePickServiceProvider)
                     .pickFromGallery(sheetContext);
                 if (sheetContext.mounted) {
-                  Navigator.of(sheetContext).pop(path);
+                  Navigator.of(sheetContext).pop(image);
                 }
               },
             ),
@@ -379,11 +379,11 @@ class _EditorPageState extends ConsumerState<EditorPage> {
               leading: const Icon(Icons.photo_camera_outlined),
               title: const Text('拍照'),
               onTap: () async {
-                final path = await ref
+                final image = await ref
                     .read(imagePickServiceProvider)
                     .pickFromCamera(sheetContext);
                 if (sheetContext.mounted) {
-                  Navigator.of(sheetContext).pop(path);
+                  Navigator.of(sheetContext).pop(image);
                 }
               },
             ),

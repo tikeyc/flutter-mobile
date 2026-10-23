@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_drawing_board/flutter_drawing_board.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:intuly/core/theme/app_colors.dart';
 import 'package:intuly/features/editor/application/editor_providers.dart';
 import 'package:intuly/features/editor/presentation/editor_page.dart';
@@ -16,15 +17,15 @@ class FakeImagePickService extends ImagePickService {
   String? nextPath = '/fake/image.png';
 
   @override
-  Future<String?> pickFromGallery(BuildContext context) async {
+  Future<XFile?> pickFromGallery(BuildContext context) async {
     galleryCalls++;
-    return nextPath;
+    return nextPath == null ? null : XFile(nextPath!);
   }
 
   @override
-  Future<String?> pickFromCamera(BuildContext context) async {
+  Future<XFile?> pickFromCamera(BuildContext context) async {
     cameraCalls++;
-    return nextPath;
+    return nextPath == null ? null : XFile(nextPath!);
   }
 }
 
@@ -140,7 +141,7 @@ void main() {
     final container = await pickImageAndLoad(tester, picker: picker);
 
     expect(picker.galleryCalls, 1);
-    expect(container.read(editorProvider).imagePath, isNotNull);
+    expect(container.read(editorProvider).image?.path, isNotNull);
     expect(find.text('点击选择图片'), findsNothing);
     expect(find.byType(DrawingBoard), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -155,7 +156,7 @@ void main() {
     );
 
     expect(picker.cameraCalls, 1);
-    expect(container.read(editorProvider).imagePath, isNotNull);
+    expect(container.read(editorProvider).image?.path, isNotNull);
     expect(find.byType(DrawingBoard), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -169,7 +170,7 @@ void main() {
     await tester.tap(find.text('从相册选择'));
     await tester.pumpAndSettle();
 
-    expect(container.read(editorProvider).imagePath, isNull);
+    expect(container.read(editorProvider).image, isNull);
     expect(find.text('点击选择图片'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -186,12 +187,12 @@ void main() {
   testWidgets('关闭按钮删除图片并回到选图占位', (tester) async {
     final picker = FakeImagePickService()..nextPath = await writeTempPng(tester);
     final container = await pickImageAndLoad(tester, picker: picker);
-    expect(container.read(editorProvider).imagePath, isNotNull);
+    expect(container.read(editorProvider).image?.path, isNotNull);
 
     await tester.tap(find.byKey(const Key('editor-close')));
     await tester.pumpAndSettle();
 
-    expect(container.read(editorProvider).imagePath, isNull);
+    expect(container.read(editorProvider).image, isNull);
     expect(find.text('点击选择图片'), findsOneWidget);
     expect(find.byType(DrawingBoard), findsNothing);
     expect(tester.takeException(), isNull);
@@ -214,7 +215,7 @@ void main() {
     );
 
     expect(picker.galleryCalls, 2);
-    expect(container.read(editorProvider).imagePath, secondPath);
+    expect(container.read(editorProvider).image?.path, secondPath);
     expect(find.byType(DrawingBoard), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

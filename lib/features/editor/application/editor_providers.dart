@@ -1,22 +1,25 @@
 import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:wechat_assets_picker/wechat_assets_picker.dart';
+
+import 'image_pick_gallery_io.dart'
+    if (dart.library.js_interop) 'image_pick_gallery_web.dart';
 
 /// 修图工具。智能点选/自动抠图为占位工具，画布交互暂时禁用。
 enum EditorTool { brush, smartSelect, autoCutout, eraser }
 
 /// 编辑器状态。
 class EditorState {
-  const EditorState({this.imagePath, this.currentTool = EditorTool.brush});
+  const EditorState({this.image, this.currentTool = EditorTool.brush});
 
-  /// 当前编辑图片的本地文件路径；null 表示尚未选择。
-  final String? imagePath;
+  /// 当前编辑图片；null 表示尚未选择。
+  /// 用 XFile 承载，原生为文件路径、Web 为 blob URL，统一走 readAsBytes 读图。
+  final XFile? image;
   final EditorTool currentTool;
 
-  EditorState copyWith({String? imagePath, EditorTool? currentTool}) {
+  EditorState copyWith({XFile? image, EditorTool? currentTool}) {
     return EditorState(
-      imagePath: imagePath ?? this.imagePath,
+      image: image ?? this.image,
       currentTool: currentTool ?? this.currentTool,
     );
   }
@@ -31,7 +34,7 @@ class EditorNotifier extends Notifier<EditorState> {
   @override
   EditorState build() => const EditorState();
 
-  void setImage(String path) => state = state.copyWith(imagePath: path);
+  void setImage(XFile image) => state = state.copyWith(image: image);
 
   /// 删除当前图片，工具选择保留。
   void clearImage() => state = EditorState(currentTool: state.currentTool);
@@ -44,30 +47,17 @@ final imagePickServiceProvider = Provider<ImagePickService>(
   (ref) => ImagePickService(),
 );
 
-/// 选图服务：相册走 wechat_assets_picker（微信风格应用内相册），
-/// 拍照走 image_picker（系统相机，最稳）。
+/// 选图服务：相册按平台分支（原生 wechat_assets_picker / Web 文件选择器），
+/// 拍照统一走 image_picker。
 class ImagePickService {
   final ImagePicker _cameraPicker = ImagePicker();
 
-  /// 从相册选一张图，返回本地文件路径；用户取消返回 null。
-  Future<String?> pickFromGallery(BuildContext context) async {
-    final List<AssetEntity>? assets = await AssetPicker.pickAssets(
-      context,
-      pickerConfig: const AssetPickerConfig(
-        maxAssets: 1,
-        requestType: RequestType.image,
-      ),
-    );
-    if (assets == null || assets.isEmpty) return null;
-    final file = await assets.first.file;
-    return file?.path;
-  }
+  /// 从相册选一张图；用户取消返回 null。
+  Future<XFile?> pickFromGallery(BuildContext context) =>
+      pickGalleryImage(context);
 
-  /// 拍照，返回照片文件路径；用户取消返回 null。
-  Future<String?> pickFromCamera(BuildContext context) async {
-    final XFile? photo = await _cameraPicker.pickImage(
-      source: ImageSource.camera,
-    );
-    return photo?.path;
-  }
+  /// 拍照；用户取消返回 null。
+  /// PC 桌面浏览器不支持 capture，会退化为文件选择器；手机浏览器仍可调起相机。
+  Future<XFile?> pickFromCamera(BuildContext context) =>
+      _cameraPicker.pickImage(source: ImageSource.camera);
 }

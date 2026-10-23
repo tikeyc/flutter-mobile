@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
-/// 修图工具。
+/// 修图工具。智能点选/自动抠图为占位工具，画布交互暂时禁用。
 enum EditorTool { brush, smartSelect, autoCutout, eraser }
 
 /// 编辑器状态。
@@ -32,6 +32,9 @@ class EditorNotifier extends Notifier<EditorState> {
   EditorState build() => const EditorState();
 
   void setImage(String path) => state = state.copyWith(imagePath: path);
+
+  /// 删除当前图片，工具选择保留。
+  void clearImage() => state = EditorState(currentTool: state.currentTool);
 
   void selectTool(EditorTool tool) => state = state.copyWith(currentTool: tool);
 }

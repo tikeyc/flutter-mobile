@@ -5,6 +5,7 @@ import '../../application/editor_providers.dart';
 
 /// 编辑器底部工具栏：涂抹/智能点选/自动抠图/橡皮擦 + 撤销/重做/重置。
 /// 白底 + 向上阴影，风格同首页底部导航。
+/// 撤销/重做/重置回调为 null 时按钮置灰不可点。
 class EditorToolbar extends StatelessWidget {
   const EditorToolbar({
     super.key,
@@ -18,7 +19,7 @@ class EditorToolbar extends StatelessWidget {
   final EditorTool selectedTool;
   final ValueChanged<EditorTool> onToolSelected;
 
-  /// 撤销/重做/重置为预留回调，后续由 flutter_fabric 涂鸦历史栈接管。
+  /// 撤销/重做/重置；不可用时传 null（按钮置灰）。
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
   final VoidCallback? onReset;
@@ -53,9 +54,9 @@ class EditorToolbar extends StatelessWidget {
           children: [
             for (final item in _tools)
               Expanded(child: _toolItem(item.tool, item.icon, item.label)),
-            Expanded(child: _actionButton(Icons.undo, onUndo)),
-            Expanded(child: _actionButton(Icons.redo, onRedo)),
-            Expanded(child: _actionButton(Icons.refresh, onReset)),
+            Expanded(child: _actionButton(Icons.undo, onUndo, 'editor-undo')),
+            Expanded(child: _actionButton(Icons.redo, onRedo, 'editor-redo')),
+            Expanded(child: _actionButton(Icons.refresh, onReset, 'editor-reset')),
           ],
         ),
       ),
@@ -88,11 +89,17 @@ class EditorToolbar extends StatelessWidget {
     );
   }
 
-  Widget _actionButton(IconData icon, VoidCallback? onTap) {
+  Widget _actionButton(IconData icon, VoidCallback? onTap, String key) {
+    final disabled = onTap == null;
     return GestureDetector(
+      key: Key(key),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Icon(icon, size: 22, color: AppColors.text2),
+      child: Icon(
+        icon,
+        size: 22,
+        color: disabled ? AppColors.text4 : AppColors.text2,
+      ),
     );
   }
 }

@@ -31,6 +31,8 @@
 
   <title>intuly</title>
   <link rel="manifest" href="manifest.json">
+  <!-- flutter_onnxruntime 的 Web 实现依赖全局 ort，必须在 Flutter 启动前加载 -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
 </head>
 <body>
   <!--

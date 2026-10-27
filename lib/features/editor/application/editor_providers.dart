@@ -5,22 +5,34 @@ import 'package:image_picker/image_picker.dart';
 import 'image_pick_gallery_io.dart'
     if (dart.library.js_interop) 'image_pick_gallery_web.dart';
 
-/// 修图工具。智能点选/自动抠图为占位工具，画布交互暂时禁用。
+/// 修图工具。自动抠图为占位工具，画布交互暂时禁用。
 enum EditorTool { brush, smartSelect, autoCutout, eraser }
 
 /// 编辑器状态。
 class EditorState {
-  const EditorState({this.image, this.currentTool = EditorTool.brush});
+  const EditorState({
+    this.image,
+    this.currentTool = EditorTool.brush,
+    this.imageIsDemo = false,
+  });
 
   /// 当前编辑图片；null 表示尚未选择。
   /// 用 XFile 承载，原生为文件路径、Web 为 blob URL，统一走 readAsBytes 读图。
   final XFile? image;
   final EditorTool currentTool;
 
-  EditorState copyWith({XFile? image, EditorTool? currentTool}) {
+  /// 当前图片是否为内置示例图；智能点选目前只支持示例图。
+  final bool imageIsDemo;
+
+  EditorState copyWith({
+    XFile? image,
+    EditorTool? currentTool,
+    bool? imageIsDemo,
+  }) {
     return EditorState(
       image: image ?? this.image,
       currentTool: currentTool ?? this.currentTool,
+      imageIsDemo: imageIsDemo ?? this.imageIsDemo,
     );
   }
 }
@@ -34,7 +46,13 @@ class EditorNotifier extends Notifier<EditorState> {
   @override
   EditorState build() => const EditorState();
 
-  void setImage(XFile image) => state = state.copyWith(image: image);
+  void setImage(XFile image, {bool demo = false}) {
+    state = EditorState(
+      image: image,
+      currentTool: state.currentTool,
+      imageIsDemo: demo,
+    );
+  }
 
   /// 删除当前图片，工具选择保留。
   void clearImage() => state = EditorState(currentTool: state.currentTool);

@@ -27,10 +27,9 @@ Size containImageSize(ui.Image image, Size maxSize) {
 
 /// flutter_drawing_board 画布：以图片为背景，上方叠加绘制层。
 ///
-/// 涂抹/橡皮擦的绘制内容与画笔参数由 [tool] 决定，切换工具即重设
-/// 画笔；包内 Painter 输入层基于 Listener，按下即开始绘制，无手势
-/// 识别延迟，快速连画/快速擦除均即时生效。画板禁用平移与缩放，
-/// 手势坐标即画布逻辑坐标。
+/// [PaintCanvas.size] 是可用区域（视口）尺寸，图片按 contain 居中显示。
+/// 双指缩放/平移基于原始指针监听，不参与手势竞技场，所以涂抹、橡皮、
+/// 智能点选任意工具下都能缩放；缩放开始时丢弃进行中的笔迹。
 class PaintCanvas extends StatefulWidget {
   const PaintCanvas({
     super.key,
@@ -38,21 +37,65 @@ class PaintCanvas extends StatefulWidget {
     required this.image,
     required this.size,
     this.tool = EditorTool.brush,
+    this.onSmartSelectTap,
+    this.previewMask,
+    this.smartSelectBusy = false,
   });
 
   final DrawingController controller;
   final ui.Image image;
+
+  /// 画布可用区域（视口）尺寸；图片在其中按 contain 居中。
   final Size size;
   final EditorTool tool;
+
+  /// 智能点选回调，参数为相对画布区域的归一化坐标（0~1）。
+  final ValueChanged<Offset>? onSmartSelectTap;
+
+  /// 待确认的选区预览，原图分辨率；所有权归调用方。
+  final ui.Image? previewMask;
+
+  /// 智能点选推理中，显示进度指示。
+  final bool smartSelectBusy;
 
   @override
   State<PaintCanvas> createState() => _PaintCanvasState();
 }
 
 class _PaintCanvasState extends State<PaintCanvas> {
+  static const double _minScale = 1;
+  static const double _maxScale = 4;
+
+  /// 当前按下的指针（视口坐标），用于双指缩放。
+  final Map<int, Offset> _pointers = <int, Offset>{};
+
+  double _scale = 1;
+
+  /// 内容左上角在视口中的位置；1x 时为图片居中偏移。
+  Offset _offset = Offset.zero;
+
+  bool _pinching = false;
+  double _pinchStartScale = 1;
+  double _pinchStartSpan = 0;
+  Offset _pinchStartFocal = Offset.zero;
+  Offset _pinchStartOffset = Offset.zero;
+
+  Size get _viewport => widget.size;
+
+  Size get _boardSize => containImageSize(widget.image, _viewport);
+
+  Offset get _centeredOffset {
+    final board = _boardSize;
+    return Offset(
+      (_viewport.width - board.width) / 2,
+      (_viewport.height - board.height) / 2,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _offset = _centeredOffset;
     _applyTool(widget.tool);
   }
 
@@ -60,6 +103,9 @@ class _PaintCanvasState extends State<PaintCanvas> {
   void didUpdateWidget(covariant PaintCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.tool != widget.tool) _applyTool(widget.tool);
+    if (oldWidget.size != widget.size || oldWidget.image != widget.image) {
+      _resetZoom();
+    }
   }
 
   void _applyTool(EditorTool tool) {
@@ -91,20 +137,213 @@ class _PaintCanvasState extends State<PaintCanvas> {
   bool get _inputEnabled =>
       widget.tool == EditorTool.brush || widget.tool == EditorTool.eraser;
 
+  bool get _selecting =>
+      widget.tool == EditorTool.smartSelect &&
+      widget.onSmartSelectTap != null;
+
+  void _handleSelectTap(TapUpDetails details) {
+    final size = _boardSize;
+    if (size.isEmpty) return;
+    widget.onSmartSelectTap!(
+      Offset(
+        (details.localPosition.dx / size.width).clamp(0.0, 1.0),
+        (details.localPosition.dy / size.height).clamp(0.0, 1.0),
+      ),
+    );
+  }
+
+  Matrix4 get _transformMatrix => Matrix4.identity()
+    ..setEntry(0, 0, _scale)
+    ..setEntry(1, 1, _scale)
+    ..setEntry(0, 3, _offset.dx)
+    ..setEntry(1, 3, _offset.dy);
+
+  void _resetZoom() {
+    final centered = _centeredOffset;
+    if (_scale == 1 && _offset == centered) return;
+    setState(() {
+      _scale = 1;
+      _offset = centered;
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers[event.pointer] = event.localPosition;
+    if (_pointers.length != 2) return;
+
+    // 第二指落下即视为缩放：丢弃第一指可能已画出的笔迹。
+    _discardInProgressStroke();
+    _pinching = true;
+    _pinchStartScale = _scale;
+    _pinchStartOffset = _offset;
+    final points = _pointers.values.toList(growable: false);
+    _pinchStartSpan = (points[0] - points[1]).distance;
+    _pinchStartFocal = (points[0] + points[1]) / 2;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (!_pointers.containsKey(event.pointer)) return;
+    _pointers[event.pointer] = event.localPosition;
+    if (!_pinching) return;
+    final points = _pointers.values.toList(growable: false);
+    if (points.length < 2 || _pinchStartSpan <= 0) return;
+
+    final focal = (points[0] + points[1]) / 2;
+    final span = (points[0] - points[1]).distance;
+    final scale =
+        (_pinchStartScale * span / _pinchStartSpan).clamp(_minScale, _maxScale);
+    // 起始焦点下的内容始终跟随当前焦点：围绕双指中心缩放/平移。
+    final offset = focal -
+        (_pinchStartFocal - _pinchStartOffset) * (scale / _pinchStartScale);
+    setState(() {
+      _scale = scale;
+      _offset = _clampOffset(offset, scale);
+    });
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.length >= 2 || !_pinching) return;
+    _pinching = false;
+    if (_scale < 1.05) _resetZoom();
+  }
+
+  void _discardInProgressStroke() {
+    final controller = widget.controller;
+    if (!controller.hasPaintingContent) return;
+    final length = controller.getHistory.length;
+    // 包内没有“丢弃已移动笔迹”的公开接口：endDraw 会提交，这里提交后
+    // 立刻撤回并把这条从历史尾部移除，避免缩放留下划痕。
+    controller.endDraw();
+    if (controller.getHistory.length > length) {
+      controller.undo();
+      controller.getHistory.removeLast();
+    }
+  }
+
+  /// 缩放后内容小于视口时居中，大于视口时限制在视口内，避免拖出空白。
+  Offset _clampOffset(Offset offset, double scale) {
+    final viewport = _viewport;
+    final board = _boardSize;
+    double align(double value, double content, double extent) {
+      final scaled = content * scale;
+      if (scaled <= extent) return (extent - scaled) / 2;
+      return value.clamp(extent - scaled, 0.0);
+    }
+
+    return Offset(
+      align(offset.dx, board.width, viewport.width),
+      align(offset.dy, board.height, viewport.height),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: !_inputEnabled,
-      child: DrawingBoard(
-        controller: widget.controller,
-        boardPanEnabled: false,
-        boardScaleEnabled: false,
-        background: SizedBox(
-          width: widget.size.width,
-          height: widget.size.height,
-          child: RawImage(image: widget.image, fit: BoxFit.fill),
+    final viewport = _viewport;
+    final board = _boardSize;
+    return SizedBox(
+      width: viewport.width,
+      height: viewport.height,
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _onPointerDown,
+        onPointerMove: _onPointerMove,
+        onPointerUp: _onPointerEnd,
+        onPointerCancel: _onPointerEnd,
+        child: ClipRect(
+          child: Stack(
+            children: [
+              Transform(
+                key: const Key('canvas-transform'),
+                alignment: Alignment.topLeft,
+                transform: _transformMatrix,
+                child: SizedBox(
+                  width: board.width,
+                  height: board.height,
+                  child: Stack(
+                    children: [
+                      IgnorePointer(
+                        ignoring: !_inputEnabled,
+                        child: DrawingBoard(
+                          controller: widget.controller,
+                          boardPanEnabled: false,
+                          boardScaleEnabled: false,
+                          background: SizedBox(
+                            width: board.width,
+                            height: board.height,
+                            child: RawImage(
+                              image: widget.image,
+                              fit: BoxFit.fill,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_selecting)
+                        Positioned.fill(
+                          child: GestureDetector(
+                            key: const Key('smart-select-surface'),
+                            behavior: HitTestBehavior.opaque,
+                            onTapUp: _handleSelectTap,
+                          ),
+                        ),
+                      if (widget.tool == EditorTool.smartSelect &&
+                          widget.previewMask != null)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              key: const Key('smart-select-preview'),
+                              painter: _PreviewMaskPainter(
+                                widget.previewMask!,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // 界面指示层不跟随图片缩放。
+              if (widget.tool == EditorTool.smartSelect &&
+                  widget.smartSelectBusy)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: SizedBox(
+                        key: const Key('smart-select-busy'),
+                        width: 32,
+                        height: 32,
+                        child: const CircularProgressIndicator(strokeWidth: 3),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _PreviewMaskPainter extends CustomPainter {
+  _PreviewMaskPainter(this.image);
+
+  final ui.Image image;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      Offset.zero & size,
+      Paint()
+        ..filterQuality = FilterQuality.low
+        ..isAntiAlias = true,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PreviewMaskPainter oldDelegate) =>
+      oldDelegate.image != image;
 }

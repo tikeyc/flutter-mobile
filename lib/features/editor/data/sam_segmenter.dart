@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
+import 'mask_data.dart';
 import 'npy_asset.dart';
 
 const String kSamModelAsset =
@@ -21,19 +22,6 @@ String samModelPath({required bool isWeb}) =>
 
 const int _embeddingSize = 256 * 64 * 64;
 const int _maskInputSide = 256;
-
-/// SAM 输出的原始 mask（float logits，>0 为选中）。
-class SamMask {
-  const SamMask({
-    required this.values,
-    required this.width,
-    required this.height,
-  });
-
-  final List<num> values;
-  final int width;
-  final int height;
-}
 
 /// 归一化点按坐标 → SAM 长边 1024 坐标系（与 Web 端一致）。
 ({double x, double y}) samPointCoords(
@@ -57,7 +45,7 @@ abstract class SamSegmenter {
   });
 
   /// 以归一化坐标推理，返回原图尺寸的 mask。
-  Future<SamMask?> segmentAt({required double normX, required double normY});
+  Future<MaskData?> segmentAt({required double normX, required double normY});
 
   void dispose();
 }
@@ -126,7 +114,7 @@ class OnnxSamSegmenter implements SamSegmenter {
   }
 
   @override
-  Future<SamMask?> segmentAt({
+  Future<MaskData?> segmentAt({
     required double normX,
     required double normY,
   }) async {
@@ -181,7 +169,7 @@ class OnnxSamSegmenter implements SamSegmenter {
       if (masks == null || masks.shape.length != 4) return null;
       final values = await masks.asFlattenedList();
       final shape = masks.shape;
-      return SamMask(
+      return MaskData(
         values: values.cast<num>(),
         width: shape[3],
         height: shape[2],

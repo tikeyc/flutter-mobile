@@ -27,7 +27,7 @@ Widget canvasApp({
   EditorTool tool = EditorTool.brush,
   ValueChanged<Offset>? onSmartSelectTap,
   ui.Image? previewMask,
-  bool smartSelectBusy = false,
+  bool maskBusy = false,
   Size size = const Size(300, 300),
 }) {
   return MaterialApp(
@@ -40,7 +40,7 @@ Widget canvasApp({
           tool: tool,
           onSmartSelectTap: onSmartSelectTap,
           previewMask: previewMask,
-          smartSelectBusy: smartSelectBusy,
+          maskBusy: maskBusy,
         ),
       ),
     ),
@@ -269,16 +269,16 @@ void main() {
       image: image,
       tool: EditorTool.smartSelect,
       previewMask: preview,
-      smartSelectBusy: true,
+      maskBusy: true,
     ));
     await tester.pump(const Duration(milliseconds: 16));
 
     final previewRect = tester.getRect(
-      find.byKey(const Key('smart-select-preview')),
+      find.byKey(const Key('mask-preview')),
     );
     expect(previewRect.size, const Size(300, 300));
     expect(previewRect.topLeft, tester.getRect(find.byType(RawImage)).topLeft);
-    expect(find.byKey(const Key('smart-select-busy')), findsOneWidget);
+    expect(find.byKey(const Key('mask-busy')), findsOneWidget);
   });
 
   testWidgets('智能点选：空闲时不显示进度指示，涂抹模式不响应点选', (tester) async {
@@ -295,7 +295,7 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 16));
 
-    expect(find.byKey(const Key('smart-select-busy')), findsNothing);
+    expect(find.byKey(const Key('mask-busy')), findsNothing);
     expect(find.byKey(const Key('smart-select-surface')), findsNothing);
 
     await tester.tapAt(tester.getRect(find.byType(RawImage)).center);
@@ -321,6 +321,30 @@ void main() {
     expect(find.text('应用选区'), findsNothing);
     expect(find.byKey(const Key('smart-select-cancel')), findsNothing);
     expect(find.byKey(const Key('smart-select-apply')), findsNothing);
+  });
+
+  testWidgets('自动抠图：预览 mask 同样叠加显示，且不响应点选', (tester) async {
+    final image = await decodePng(tester);
+    final ctrl = DrawingController();
+    addTearDown(ctrl.dispose);
+    final preview = await buildPreview(tester);
+    final points = <Offset>[];
+
+    await tester.pumpWidget(canvasApp(
+      controller: ctrl,
+      image: image,
+      tool: EditorTool.autoCutout,
+      previewMask: preview,
+      onSmartSelectTap: points.add,
+    ));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.byKey(const Key('mask-preview')), findsOneWidget);
+    expect(find.byKey(const Key('smart-select-surface')), findsNothing);
+
+    await tester.tapAt(tester.getRect(find.byType(RawImage)).center);
+    await tester.pump();
+    expect(points, isEmpty, reason: '自动抠图不响应点选');
   });
 
   testWidgets('双指张开放大图片，双指捏合回到 1x 并归位', (tester) async {

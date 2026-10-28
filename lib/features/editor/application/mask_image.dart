@@ -36,6 +36,51 @@ Uint8List maskToRgba(
   return rgba;
 }
 
+/// 把 mask 转成白色 + alpha 的裁剪遮罩像素：选中 alpha 255，其余全透明。
+Uint8List maskToAlphaRgba(
+  List<num> mask, {
+  required int width,
+  required int height,
+}) {
+  final expected = width * height;
+  if (mask.length != expected) {
+    throw ArgumentError.value(
+      mask.length,
+      'mask',
+      '长度应为 $expected（$width×$height）',
+    );
+  }
+
+  final rgba = Uint8List(expected * 4);
+  for (var i = 0; i < expected; i++) {
+    if (mask[i] <= 0) continue;
+    final offset = i * 4;
+    rgba[offset] = 255;
+    rgba[offset + 1] = 255;
+    rgba[offset + 2] = 255;
+    rgba[offset + 3] = 255;
+  }
+  return rgba;
+}
+
+/// 把 mask 转成可配合 [ui.BlendMode.dstIn] 裁剪主体的 alpha 遮罩图。
+Future<ui.Image> maskToAlphaImage(
+  List<num> mask, {
+  required int width,
+  required int height,
+}) {
+  final rgba = maskToAlphaRgba(mask, width: width, height: height);
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    rgba,
+    width,
+    height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
 /// 把 mask 转成可直接绘制/导出的半透明绿色图片。
 ///
 /// [ui.PixelFormat.rgba8888] 要求预乘 alpha，因此这里把直通色预乘后再解码。

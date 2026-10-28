@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intuly/features/editor/application/smart_select_providers.dart';
+import 'package:intuly/features/editor/data/mask_data.dart';
 import 'package:intuly/features/editor/data/sam_segmenter.dart';
 
 import '../../../helpers/fake_sam_segmenter.dart';
@@ -61,7 +62,7 @@ void main() {
 
   test('selectAt 生成预览，takePreview 转移图片所有权', () async {
     final fake = FakeSamSegmenter()
-      ..nextMask = const SamMask(
+      ..nextMask = const MaskData(
         values: [1, 0, 0, 1],
         width: 2,
         height: 2,
@@ -93,7 +94,7 @@ void main() {
 
   test('cancelPreview 清空并释放预览图', () async {
     final fake = FakeSamSegmenter()
-      ..nextMask = const SamMask(values: [1], width: 1, height: 1);
+      ..nextMask = const MaskData(values: [1], width: 1, height: 1);
     final container = makeContainer(fake);
     final notifier = container.read(smartSelectProvider.notifier);
     await notifier.ensureReady(imageWidth: 600, imageHeight: 400);
@@ -112,7 +113,7 @@ void main() {
 
   test('isSelected 判断点是否落在当前选区', () async {
     final fake = FakeSamSegmenter()
-      ..nextMask = const SamMask(values: [1, 0, 0, 1], width: 2, height: 2);
+      ..nextMask = const MaskData(values: [1, 0, 0, 1], width: 2, height: 2);
     final container = makeContainer(fake);
     final notifier = container.read(smartSelectProvider.notifier);
     await notifier.ensureReady(imageWidth: 600, imageHeight: 400);
@@ -148,7 +149,7 @@ void main() {
   });
 
   test('推理进行中重复点选被忽略', () async {
-    final fake = FakeSamSegmenter()..pending = Completer<SamMask?>();
+    final fake = FakeSamSegmenter()..pending = Completer<MaskData?>();
     final container = makeContainer(fake);
     final notifier = container.read(smartSelectProvider.notifier);
     await notifier.ensureReady(imageWidth: 600, imageHeight: 400);
@@ -166,7 +167,7 @@ void main() {
     expect(fake.segmentCalls, 1);
 
     fake.pending!.complete(
-      const SamMask(values: [1], width: 1, height: 1),
+      const MaskData(values: [1], width: 1, height: 1),
     );
     await first;
 

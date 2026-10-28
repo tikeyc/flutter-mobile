@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart' show Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/mask_data.dart';
 import '../data/sam_segmenter.dart';
 import 'mask_content.dart';
 import 'mask_image.dart';
@@ -41,7 +42,7 @@ class SmartSelectController extends Notifier<SmartSelectState> {
   ui.Image? _preview;
 
   /// 当前预览对应的原始 mask，用于判断点按是否落在已选区域内。
-  SamMask? _mask;
+  MaskData? _mask;
   int _generation = 0;
   int? _readyWidth;
   int? _readyHeight;
@@ -167,7 +168,7 @@ class SmartSelectController extends Notifier<SmartSelectState> {
   }
 
   /// 当前预览对应的原始 mask；无预览时为 null。
-  SamMask? get currentMask => _mask;
+  MaskData? get currentMask => _mask;
 
   /// 点按是否落在当前预览选区内；再次点按已选区域时保留预览、不重复推理。
   bool isSelected(Offset normalized) {

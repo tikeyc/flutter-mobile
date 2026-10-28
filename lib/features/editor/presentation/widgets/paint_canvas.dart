@@ -39,7 +39,7 @@ class PaintCanvas extends StatefulWidget {
     this.tool = EditorTool.brush,
     this.onSmartSelectTap,
     this.previewMask,
-    this.smartSelectBusy = false,
+    this.maskBusy = false,
   });
 
   final DrawingController controller;
@@ -52,11 +52,11 @@ class PaintCanvas extends StatefulWidget {
   /// 智能点选回调，参数为相对画布区域的归一化坐标（0~1）。
   final ValueChanged<Offset>? onSmartSelectTap;
 
-  /// 待确认的选区预览，原图分辨率；所有权归调用方。
+  /// 待确认的选区预览（智能点选/自动抠图共用），原图分辨率；所有权归调用方。
   final ui.Image? previewMask;
 
-  /// 智能点选推理中，显示进度指示。
-  final bool smartSelectBusy;
+  /// 选区推理中，显示进度指示。
+  final bool maskBusy;
 
   @override
   State<PaintCanvas> createState() => _PaintCanvasState();
@@ -129,13 +129,18 @@ class _PaintCanvasState extends State<PaintCanvas> {
           );
       case EditorTool.smartSelect:
       case EditorTool.autoCutout:
-        // 占位工具：不改画笔配置，画布输入由 IgnorePointer 禁用。
+        // 选区类工具：不改画笔配置，画布输入由 IgnorePointer 禁用。
         break;
     }
   }
 
   bool get _inputEnabled =>
       widget.tool == EditorTool.brush || widget.tool == EditorTool.eraser;
+
+  /// 选区类工具共用绿色 mask 预览层与推理进度指示。
+  bool get _isMaskTool =>
+      widget.tool == EditorTool.smartSelect ||
+      widget.tool == EditorTool.autoCutout;
 
   bool get _selecting =>
       widget.tool == EditorTool.smartSelect &&
@@ -286,12 +291,11 @@ class _PaintCanvasState extends State<PaintCanvas> {
                             onTapUp: _handleSelectTap,
                           ),
                         ),
-                      if (widget.tool == EditorTool.smartSelect &&
-                          widget.previewMask != null)
+                      if (_isMaskTool && widget.previewMask != null)
                         Positioned.fill(
                           child: IgnorePointer(
                             child: CustomPaint(
-                              key: const Key('smart-select-preview'),
+                              key: const Key('mask-preview'),
                               painter: _PreviewMaskPainter(
                                 widget.previewMask!,
                               ),
@@ -303,13 +307,12 @@ class _PaintCanvasState extends State<PaintCanvas> {
                 ),
               ),
               // 界面指示层不跟随图片缩放。
-              if (widget.tool == EditorTool.smartSelect &&
-                  widget.smartSelectBusy)
+              if (_isMaskTool && widget.maskBusy)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Center(
                       child: SizedBox(
-                        key: const Key('smart-select-busy'),
+                        key: const Key('mask-busy'),
                         width: 32,
                         height: 32,
                         child: const CircularProgressIndicator(strokeWidth: 3),

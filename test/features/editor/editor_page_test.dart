@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_drawing_board/flutter_drawing_board.dart';
@@ -7,11 +9,14 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:intuly/core/theme/app_colors.dart';
+import 'package:intuly/features/editor/application/auto_cutout_providers.dart';
 import 'package:intuly/features/editor/application/editor_providers.dart';
 import 'package:intuly/features/editor/application/smart_select_providers.dart';
+import 'package:intuly/features/editor/data/mask_data.dart';
 import 'package:intuly/features/editor/data/sam_segmenter.dart'
-    show SamMask, kDemoImageAsset;
+    show kDemoImageAsset;
 import 'package:intuly/features/editor/presentation/editor_page.dart';
+import '../../helpers/fake_matting_segmenter.dart';
 import '../../helpers/fake_sam_segmenter.dart';
 import '../../helpers/test_images.dart' show kPngBytes;
 
@@ -36,16 +41,55 @@ class FakeImagePickService extends ImagePickService {
 
 /// 写入一份真实 PNG 到临时文件并返回路径（画布需要真实字节才能解码）。
 /// dart:io 异步在 fake async 区不会完成，必须包在 runAsync 里。
-Future<String> writeTempPng(WidgetTester tester) async {
+Future<String> writeTempPng(
+  WidgetTester tester, {
+  int width = 1,
+  int height = 1,
+}) async {
   late String path;
   await tester.runAsync(() async {
     final dir = await Directory.systemTemp.createTemp('editor_test');
     addTearDown(() => dir.deleteSync(recursive: true));
     final file = File('${dir.path}/photo.png');
-    await file.writeAsBytes(kPngBytes);
+    await file.writeAsBytes(
+      width == 1 && height == 1 ? kPngBytes : await encodePng(width, height),
+    );
     path = file.path;
   });
   return path;
+}
+
+Future<Uint8List> encodePng(int width, int height) async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder).drawRect(
+    Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    Paint()..color = const Color(0xFF3366FF),
+  );
+  final image = await recorder.endRecording().toImage(width, height);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return data!.buffer.asUint8List();
+}
+
+Future<({int width, int height, Uint8List rgba})> decodePreviewPng(
+  WidgetTester tester,
+  Uint8List bytes,
+) async {
+  late int width;
+  late int height;
+  late Uint8List rgba;
+  await tester.runAsync(() async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    width = frame.image.width;
+    height = frame.image.height;
+    rgba = data!.buffer.asUint8List();
+    frame.image.dispose();
+  });
+  return (width: width, height: height, rgba: rgba);
 }
 
 Future<ProviderContainer> pumpEditor(
@@ -381,13 +425,13 @@ void main() {
 
     testWidgets('点按生成预览，应用后入历史并可撤销', (tester) async {
       final fake = await pumpDemoReady(tester);
-      fake.nextMask = const SamMask(values: [1, 1, 0, 0], width: 2, height: 2);
+      fake.nextMask = const MaskData(values: [1, 1, 0, 0], width: 2, height: 2);
 
       await tester.tapAt(tester.getRect(find.byType(RawImage)).center);
       await pumpRealAsync(
         tester,
         () =>
-            find.byKey(const Key('smart-select-preview')).evaluate().isNotEmpty,
+            find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
       );
       expect(fake.segmentCalls, 1);
       expect(find.byKey(const Key('smart-select-apply')), findsOneWidget);
@@ -400,7 +444,7 @@ void main() {
       await tester.tap(find.byKey(const Key('smart-select-apply')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('smart-select-preview')), findsNothing);
+      expect(find.byKey(const Key('mask-preview')), findsNothing);
       expect(undo().onTap, isNotNull);
 
       await tester.tap(find.byKey(const Key('editor-undo')));
@@ -411,7 +455,7 @@ void main() {
 
     testWidgets('再次点按已选区域不重复推理，点选区外重新推理', (tester) async {
       final fake = await pumpDemoReady(tester);
-      fake.nextMask = const SamMask(values: [1, 1, 0, 0], width: 2, height: 2);
+      fake.nextMask = const MaskData(values: [1, 1, 0, 0], width: 2, height: 2);
 
       final rect = tester.getRect(find.byType(RawImage));
       Offset at(double dx, double dy) =>
@@ -421,7 +465,7 @@ void main() {
       await pumpRealAsync(
         tester,
         () =>
-            find.byKey(const Key('smart-select-preview')).evaluate().isNotEmpty,
+            find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
       );
       expect(fake.segmentCalls, 1);
 
@@ -439,16 +483,16 @@ void main() {
         tester,
         () =>
             fake.segmentCalls == 2 &&
-            find.byKey(const Key('smart-select-busy')).evaluate().isEmpty,
+            find.byKey(const Key('mask-busy')).evaluate().isEmpty,
       );
       expect(fake.segmentCalls, 2);
-      expect(find.byKey(const Key('smart-select-preview')), findsOneWidget);
+      expect(find.byKey(const Key('mask-preview')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('应用选区后再点该区域只显示取消选区，点击移除该选区图层', (tester) async {
       final fake = await pumpDemoReady(tester);
-      fake.nextMask = const SamMask(values: [1, 1, 0, 0], width: 2, height: 2);
+      fake.nextMask = const MaskData(values: [1, 1, 0, 0], width: 2, height: 2);
 
       final rect = tester.getRect(find.byType(RawImage));
       Offset at(double dx, double dy) =>
@@ -458,7 +502,7 @@ void main() {
       await pumpRealAsync(
         tester,
         () =>
-            find.byKey(const Key('smart-select-preview')).evaluate().isNotEmpty,
+            find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
       );
       await tester.tap(find.byKey(const Key('smart-select-apply')));
       await tester.pumpAndSettle();
@@ -489,7 +533,7 @@ void main() {
       await pumpRealAsync(
         tester,
         () =>
-            find.byKey(const Key('smart-select-preview')).evaluate().isNotEmpty,
+            find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
       );
       expect(fake.segmentCalls, 2);
       expect(tester.takeException(), isNull);
@@ -497,19 +541,19 @@ void main() {
 
     testWidgets('预览可取消，不产生历史', (tester) async {
       final fake = await pumpDemoReady(tester);
-      fake.nextMask = const SamMask(values: [1, 1, 0, 0], width: 2, height: 2);
+      fake.nextMask = const MaskData(values: [1, 1, 0, 0], width: 2, height: 2);
 
       await tester.tapAt(tester.getRect(find.byType(RawImage)).center);
       await pumpRealAsync(
         tester,
         () =>
-            find.byKey(const Key('smart-select-preview')).evaluate().isNotEmpty,
+            find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
       );
 
       await tester.tap(find.byKey(const Key('smart-select-cancel')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('smart-select-preview')), findsNothing);
+      expect(find.byKey(const Key('mask-preview')), findsNothing);
       final undo = tester.widget<GestureDetector>(
         find.byKey(const Key('editor-undo')),
       );
@@ -567,6 +611,339 @@ void main() {
       );
 
       expect(find.textContaining('模型加载失败'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('自动抠图', () {
+    Future<FakeMattingSegmenter> pumpCutoutReady(WidgetTester tester) async {
+      final picker = FakeImagePickService()
+        ..nextPath = await writeTempPng(tester);
+      final fake = FakeMattingSegmenter()
+        ..nextMask = const MaskData(values: [1, 0, 1, 0], width: 2, height: 2);
+      await pickImageAndLoad(
+        tester,
+        picker: picker,
+        overrides: [mattingSegmenterProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.text('自动抠图'));
+      await pumpRealAsync(
+        tester,
+        () =>
+            find.byKey(const Key('mask-preview')).evaluate().isNotEmpty &&
+            fake.segmentCalls == 1,
+      );
+      return fake;
+    }
+
+    testWidgets('选择自动抠图后识别主体，应用后入历史并可撤销', (tester) async {
+      final fake = await pumpCutoutReady(tester);
+
+      expect(fake.ensureCalls, 1);
+      expect(find.byKey(const Key('auto-cutout-apply')), findsOneWidget);
+      expect(find.byKey(const Key('auto-cutout-cancel')), findsOneWidget);
+
+      GestureDetector undo() =>
+          tester.widget(find.byKey(const Key('editor-undo')));
+      expect(undo().onTap, isNull);
+
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mask-preview')), findsNothing);
+      expect(undo().onTap, isNotNull);
+
+      await tester.tap(find.byKey(const Key('editor-undo')));
+      await tester.pumpAndSettle();
+      expect(undo().onTap, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('预览可取消，不产生历史', (tester) async {
+      await pumpCutoutReady(tester);
+
+      await tester.tap(find.byKey(const Key('auto-cutout-cancel')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mask-preview')), findsNothing);
+      final undo = tester.widget<GestureDetector>(
+        find.byKey(const Key('editor-undo')),
+      );
+      expect(undo.onTap, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('切换到其他工具会取消预览', (tester) async {
+      await pumpCutoutReady(tester);
+
+      await tester.tap(find.text('涂抹'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mask-preview')), findsNothing);
+      expect(find.byKey(const Key('auto-cutout-apply')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('模型加载失败展示不可用提示', (tester) async {
+      final picker = FakeImagePickService()
+        ..nextPath = await writeTempPng(tester);
+      final fake = FakeMattingSegmenter()..ensureError = StateError('模型加载失败');
+      await pickImageAndLoad(
+        tester,
+        picker: picker,
+        overrides: [mattingSegmenterProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.text('自动抠图'));
+      await pumpRealAsync(
+        tester,
+        () => find.textContaining('自动抠图不可用').evaluate().isNotEmpty,
+      );
+
+      expect(find.textContaining('模型加载失败'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('应用抠图选区后，立即生成导出紧贴主体的透明 PNG', (tester) async {
+      const width = 400;
+      const height = 200;
+      final picker = FakeImagePickService()
+        ..nextPath = await writeTempPng(
+          tester,
+          width: width,
+          height: height,
+        );
+      final values = List<num>.generate(width * height, (i) {
+        final x = i % width;
+        final y = i ~/ width;
+        final selected = x >= 100 && x < 300 && y >= 50 && y < 150;
+        return selected ? 1 : 0;
+      });
+      final fake = FakeMattingSegmenter()
+        ..nextMask = MaskData(
+          values: values,
+          width: width,
+          height: height,
+        );
+      await pickImageAndLoad(
+        tester,
+        picker: picker,
+        overrides: [mattingSegmenterProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.text('自动抠图'));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('editor-generate')));
+      await pumpRealAsync(
+        tester,
+        () => find.text('生成预览').evaluate().isNotEmpty,
+      );
+
+      final preview = tester.widget<Image>(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(Image),
+        ),
+      );
+      final png = await decodePreviewPng(
+        tester,
+        (preview.image as MemoryImage).bytes,
+      );
+
+      expect(png.width, 200, reason: '按主体外接框裁剪');
+      expect(png.height, 100);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('抠图导出把涂抹区域并入主体，不烘焙笔迹颜色', (tester) async {
+      const width = 400;
+      const height = 200;
+      final picker = FakeImagePickService()
+        ..nextPath = await writeTempPng(
+          tester,
+          width: width,
+          height: height,
+        );
+      final fake = FakeMattingSegmenter()
+        ..nextMask = MaskData(
+          values: List<num>.generate(
+            width * height,
+            (i) {
+              final x = i % width;
+              return x >= 100 && x < 150 ? 1 : 0;
+            },
+          ),
+          width: width,
+          height: height,
+        );
+      await pickImageAndLoad(
+        tester,
+        picker: picker,
+        overrides: [mattingSegmenterProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.text('自动抠图'));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+
+      // 在选区（x 100..150）右侧画一笔，笔迹区域也应被保留。
+      await tester.tap(find.text('涂抹'));
+      await tester.pump();
+      await drawStroke(tester, const Offset(60, 0));
+
+      await tester.tap(find.byKey(const Key('editor-generate')));
+      await pumpRealAsync(
+        tester,
+        () => find.text('生成预览').evaluate().isNotEmpty,
+      );
+
+      final preview = tester.widget<Image>(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(Image),
+        ),
+      );
+      final png = await decodePreviewPng(
+        tester,
+        (preview.image as MemoryImage).bytes,
+      );
+
+      expect(png.width, greaterThan(50), reason: '笔迹区域并入后外接框向右扩展');
+      expect(png.height, 200);
+      var visible = 0;
+      var inkPixels = 0;
+      for (var i = 0; i < png.width * png.height * 4; i += 4) {
+        if (png.rgba[i + 3] == 0) continue;
+        visible++;
+        final isBase = png.rgba[i] == 0x33 &&
+            png.rgba[i + 1] == 0x66 &&
+            png.rgba[i + 2] == 0xFF;
+        if (!isBase) inkPixels++;
+      }
+      expect(visible, greaterThan(0));
+      expect(inkPixels, 0, reason: '笔迹只决定保留区域，导出的是笔迹下方的原图');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('应用选区后切走再切回自动抠图不重复推理', (tester) async {
+      final fake = await pumpCutoutReady(tester);
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+      expect(fake.segmentCalls, 1);
+
+      await tester.tap(find.text('涂抹'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('自动抠图'));
+      await tester.pumpAndSettle();
+
+      expect(fake.segmentCalls, 1, reason: '已有应用选区，不再重新抠图');
+      expect(find.byKey(const Key('mask-preview')), findsNothing);
+      expect(find.text('已应用主体选区'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('已应用选区后点「重新识别」再次推理', (tester) async {
+      final fake = await pumpCutoutReady(tester);
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+      expect(fake.segmentCalls, 1);
+      expect(find.text('已应用主体选区'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('auto-cutout-retry')));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+
+      expect(fake.segmentCalls, 2);
+      expect(find.byKey(const Key('auto-cutout-apply')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('点「重新识别」先移除已应用的抠图选区', (tester) async {
+      await pumpCutoutReady(tester);
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+      GestureDetector undo() =>
+          tester.widget(find.byKey(const Key('editor-undo')));
+      expect(undo().onTap, isNotNull);
+
+      await tester.tap(find.byKey(const Key('auto-cutout-retry')));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+
+      expect(undo().onTap, isNull, reason: '旧选区图层已移除，避免两层绿色叠加');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('重新识别只移除抠图选区，保留涂抹笔迹', (tester) async {
+      await pumpCutoutReady(tester);
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('涂抹'));
+      await tester.pumpAndSettle();
+      await drawStroke(tester, const Offset(40, 20));
+      await tester.tap(find.text('自动抠图'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('auto-cutout-retry')));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+
+      final undo = tester.widget<GestureDetector>(
+        find.byKey(const Key('editor-undo')),
+      );
+      expect(undo.onTap, isNotNull, reason: '笔迹仍在历史里');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('撤销已应用的抠图选区后切回会重新识别', (tester) async {
+      final fake = await pumpCutoutReady(tester);
+      await tester.tap(find.byKey(const Key('auto-cutout-apply')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('涂抹'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('editor-undo')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('自动抠图'));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+
+      expect(fake.segmentCalls, 2);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('无图时切换自动抠图不推理', (tester) async {
+      final fake = FakeMattingSegmenter();
+      await pumpEditor(
+        tester,
+        overrides: [mattingSegmenterProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.text('自动抠图'));
+      await tester.pumpAndSettle();
+
+      expect(fake.ensureCalls, 0);
+      expect(fake.segmentCalls, 0);
+      expect(find.textContaining('正在加载抠图模型'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });

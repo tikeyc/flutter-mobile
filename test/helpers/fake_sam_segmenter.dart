@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:intuly/features/editor/data/mask_data.dart';
 import 'package:intuly/features/editor/data/sam_segmenter.dart';
 
 /// 可编排的 SAM 推理替身：不加载 ONNX，直接返回预设 mask。
@@ -9,8 +10,8 @@ class FakeSamSegmenter implements SamSegmenter {
   int? readyWidth;
   int? readyHeight;
   Object? ensureError;
-  SamMask? nextMask;
-  Completer<SamMask?>? pending;
+  MaskData? nextMask;
+  Completer<MaskData?>? pending;
 
   @override
   Future<void> ensureReady({
@@ -24,7 +25,7 @@ class FakeSamSegmenter implements SamSegmenter {
   }
 
   @override
-  Future<SamMask?> segmentAt({
+  Future<MaskData?> segmentAt({
     required double normX,
     required double normY,
   }) {

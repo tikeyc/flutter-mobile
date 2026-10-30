@@ -21,6 +21,7 @@ import '../application/mask_content.dart';
 import '../application/smart_select_providers.dart';
 import '../data/mask_data.dart';
 import '../data/sam_segmenter.dart' show kDemoImageAsset;
+import 'widgets/brush_size_bar.dart';
 import 'widgets/editor_toolbar.dart';
 import 'widgets/paint_canvas.dart';
 
@@ -366,6 +367,16 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     setState(() {});
   }
 
+  /// 笔宽浮层：涂抹与橡皮擦各自记忆粗细。
+  void _setStrokeWidth(double size) {
+    final notifier = ref.read(editorProvider.notifier);
+    if (ref.read(editorProvider).currentTool == EditorTool.eraser) {
+      notifier.setEraserSize(size);
+    } else {
+      notifier.setBrushSize(size);
+    }
+  }
+
   /// 取消点按区域已应用的选区：把该图层从绘制历史中移除。
   void _cancelAppliedSelection() {
     final target = _cancelTarget;
@@ -645,6 +656,11 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                 image: image,
                 size: constraints.biggest,
                 tool: state.currentTool,
+                strokeWidth: switch (state.currentTool) {
+                  EditorTool.brush => state.brushSize,
+                  EditorTool.eraser => state.eraserSize,
+                  _ => null,
+                },
                 onSmartSelectTap: state.currentTool == EditorTool.smartSelect
                     ? _onSmartSelectTap
                     : null,
@@ -673,6 +689,23 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                     child: _autoCutoutBar(
                       cutoutState,
                       applied: _hasAppliedCutout,
+                    ),
+                  ),
+                ),
+              if (state.currentTool == EditorTool.brush ||
+                  state.currentTool == EditorTool.eraser)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 56,
+                  child: Center(
+                    child: BrushSizeBar(
+                      key: const Key('brush-size-bar'),
+                      size: state.currentTool == EditorTool.eraser
+                          ? state.eraserSize
+                          : state.brushSize,
+                      isEraser: state.currentTool == EditorTool.eraser,
+                      onChanged: _setStrokeWidth,
                     ),
                   ),
                 ),

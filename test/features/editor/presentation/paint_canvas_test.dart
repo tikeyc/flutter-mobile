@@ -25,6 +25,7 @@ Widget canvasApp({
   required DrawingController controller,
   required ui.Image image,
   EditorTool tool = EditorTool.brush,
+  double? strokeWidth,
   ValueChanged<Offset>? onSmartSelectTap,
   ui.Image? previewMask,
   bool maskBusy = false,
@@ -38,6 +39,7 @@ Widget canvasApp({
           image: image,
           size: size,
           tool: tool,
+          strokeWidth: strokeWidth,
           onSmartSelectTap: onSmartSelectTap,
           previewMask: previewMask,
           maskBusy: maskBusy,
@@ -50,11 +52,14 @@ Widget canvasApp({
 Future<DrawingController> pumpCanvas(
   WidgetTester tester, {
   EditorTool tool = EditorTool.brush,
+  double? strokeWidth,
 }) async {
   final image = await decodePng(tester);
   final ctrl = DrawingController();
   addTearDown(ctrl.dispose);
-  await tester.pumpWidget(canvasApp(controller: ctrl, image: image, tool: tool));
+  await tester.pumpWidget(
+    canvasApp(controller: ctrl, image: image, tool: tool, strokeWidth: strokeWidth),
+  );
   // 必须带时长推进 fake 时钟，否则包内 SafeState 的零时长 Timer 不触发，
   // 测试结束会报 pending timer。
   await tester.pump(const Duration(milliseconds: 16));
@@ -124,6 +129,66 @@ void main() {
 
     expect(ctrl.currentContent, isA<Eraser>());
     expect(ctrl.drawConfig.value.strokeWidth, 32);
+  });
+
+  testWidgets('传入笔宽时使用该宽度绘制', (tester) async {
+    final brush = await pumpCanvas(tester, strokeWidth: 48);
+    expect(brush.drawConfig.value.strokeWidth, 48);
+
+    final ctrl = DrawingController();
+    addTearDown(ctrl.dispose);
+    final image = await decodePng(tester);
+    await tester.pumpWidget(canvasApp(
+      controller: ctrl,
+      image: image,
+      tool: EditorTool.eraser,
+      strokeWidth: 56,
+    ));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(ctrl.drawConfig.value.strokeWidth, 56);
+  });
+
+  testWidgets('笔宽变化只更新样式，画笔内容与历史保持不变', (tester) async {
+    final image = await decodePng(tester);
+    final ctrl = DrawingController();
+    addTearDown(ctrl.dispose);
+
+    await tester.pumpWidget(
+      canvasApp(controller: ctrl, image: image, strokeWidth: 24),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    await dragStroke(tester, const Offset(40, 60), const Offset(140, 60));
+    final content = ctrl.currentContent;
+
+    await tester.pumpWidget(
+      canvasApp(controller: ctrl, image: image, strokeWidth: 40),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(ctrl.drawConfig.value.strokeWidth, 40);
+    expect(identical(ctrl.currentContent, content), isTrue);
+    expect(ctrl.getHistory, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('换图换新 controller 后仍应用当前笔宽', (tester) async {
+    final image = await decodePng(tester);
+    final oldCtrl = DrawingController();
+    addTearDown(oldCtrl.dispose);
+    await tester.pumpWidget(
+      canvasApp(controller: oldCtrl, image: image, tool: EditorTool.eraser, strokeWidth: 50),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    final newCtrl = DrawingController();
+    addTearDown(newCtrl.dispose);
+    await tester.pumpWidget(
+      canvasApp(controller: newCtrl, image: image, tool: EditorTool.eraser, strokeWidth: 50),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(newCtrl.drawConfig.value.strokeWidth, 50);
+    expect(newCtrl.currentContent, isA<Eraser>());
   });
 
   testWidgets('智能点选/自动抠图为占位工具，画布不产笔迹', (tester) async {

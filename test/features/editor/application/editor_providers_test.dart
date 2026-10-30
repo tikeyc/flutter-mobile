@@ -36,4 +36,50 @@ void main() {
     expect(state.currentTool, EditorTool.eraser);
     expect(state.image?.path, '/tmp/a.png');
   });
+
+  test('涂抹与橡皮擦的粗细默认值互不影响', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(editorProvider.notifier);
+    expect(container.read(editorProvider).brushSize, kDefaultBrushWidth);
+    expect(container.read(editorProvider).eraserSize, kDefaultEraserWidth);
+
+    notifier.setBrushSize(48);
+
+    final state = container.read(editorProvider);
+    expect(state.brushSize, 48);
+    expect(state.eraserSize, kDefaultEraserWidth);
+  });
+
+  test('粗细设置限制在允许范围内', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(editorProvider.notifier);
+
+    notifier.setBrushSize(1);
+    expect(container.read(editorProvider).brushSize, kMinStrokeWidth);
+
+    notifier.setEraserSize(999);
+    expect(container.read(editorProvider).eraserSize, kMaxStrokeWidth);
+  });
+
+  test('切图与删图都保留粗细设置', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(editorProvider.notifier);
+
+    notifier
+      ..setBrushSize(40)
+      ..setEraserSize(56)
+      ..setImage(XFile('/tmp/a.png'));
+
+    expect(container.read(editorProvider).brushSize, 40);
+    expect(container.read(editorProvider).eraserSize, 56);
+
+    notifier.clearImage();
+
+    expect(container.read(editorProvider).brushSize, 40);
+    expect(container.read(editorProvider).eraserSize, 56);
+  });
 }

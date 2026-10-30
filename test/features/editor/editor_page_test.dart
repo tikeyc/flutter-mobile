@@ -947,4 +947,88 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('画笔粗细', () {
+    double canvasStrokeWidth(WidgetTester tester) => tester
+        .widget<DrawingBoard>(find.byType(DrawingBoard))
+        .controller
+        .drawConfig
+        .value
+        .strokeWidth;
+
+    Future<ProviderContainer> pumpWithImage(WidgetTester tester) async {
+      final picker = FakeImagePickService()
+        ..nextPath = await writeTempPng(tester);
+      return pickImageAndLoad(tester, picker: picker);
+    }
+
+    testWidgets('无图时不显示笔宽浮层', (tester) async {
+      await pumpEditor(tester);
+
+      expect(find.byKey(const Key('brush-size-bar')), findsNothing);
+    });
+
+    testWidgets('涂抹下浮出笔宽滑块，拖动后画布笔宽同步', (tester) async {
+      final container = await pumpWithImage(tester);
+
+      expect(find.byKey(const Key('brush-size-bar')), findsOneWidget);
+      expect(canvasStrokeWidth(tester), kDefaultBrushWidth);
+
+      await tester.drag(
+        find.byKey(const Key('brush-size-slider')),
+        const Offset(60, 0),
+      );
+      await tester.pumpAndSettle();
+
+      final size = container.read(editorProvider).brushSize;
+      expect(size, greaterThan(kDefaultBrushWidth));
+      expect(canvasStrokeWidth(tester), size);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('橡皮擦笔宽独立记忆，切回涂抹恢复原值', (tester) async {
+      final container = await pumpWithImage(tester);
+
+      await tester.tap(find.text('橡皮擦'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('brush-size-bar')), findsOneWidget);
+      expect(canvasStrokeWidth(tester), kDefaultEraserWidth);
+
+      await tester.drag(
+        find.byKey(const Key('brush-size-slider')),
+        const Offset(60, 0),
+      );
+      await tester.pumpAndSettle();
+
+      final eraserSize = container.read(editorProvider).eraserSize;
+      expect(eraserSize, greaterThan(kDefaultEraserWidth));
+      expect(container.read(editorProvider).brushSize, kDefaultBrushWidth);
+      expect(canvasStrokeWidth(tester), eraserSize);
+
+      await tester.tap(find.text('涂抹'));
+      await tester.pumpAndSettle();
+      expect(canvasStrokeWidth(tester), kDefaultBrushWidth);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('选区类工具不显示笔宽浮层', (tester) async {
+      final picker = FakeImagePickService()
+        ..nextPath = await writeTempPng(tester);
+      final fake = FakeMattingSegmenter()
+        ..nextMask = const MaskData(values: [1, 0, 1, 0], width: 2, height: 2);
+      await pickImageAndLoad(
+        tester,
+        picker: picker,
+        overrides: [mattingSegmenterProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.text('自动抠图'));
+      await pumpRealAsync(
+        tester,
+        () => find.byKey(const Key('mask-preview')).evaluate().isNotEmpty,
+      );
+
+      expect(find.byKey(const Key('brush-size-bar')), findsNothing);
+    });
+  });
 }

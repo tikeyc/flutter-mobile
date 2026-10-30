@@ -10,11 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../application/editor_providers.dart';
 
 /// 涂抹画笔：主色、60% 不透明度，笔迹下的图片仍可见。
-const double kBrushWidth = 24;
 const double kBrushOpacity = 0.6;
-
-/// 橡皮擦宽度。
-const double kEraserWidth = 32;
 
 /// 按图片宽高比将尺寸限制在 maxSize 内（BoxFit.contain）。
 Size containImageSize(ui.Image image, Size maxSize) {
@@ -38,6 +34,7 @@ class PaintCanvas extends StatefulWidget {
     required this.image,
     required this.size,
     this.tool = EditorTool.brush,
+    this.strokeWidth,
     this.onSmartSelectTap,
     this.previewMask,
     this.maskBusy = false,
@@ -49,6 +46,9 @@ class PaintCanvas extends StatefulWidget {
   /// 画布可用区域（视口）尺寸；图片在其中按 contain 居中。
   final Size size;
   final EditorTool tool;
+
+  /// 当前工具的画布逻辑像素笔宽；null 时用该工具的默认笔宽。
+  final double? strokeWidth;
 
   /// 智能点选回调，参数为相对画布区域的归一化坐标（0~1）。
   final ValueChanged<Offset>? onSmartSelectTap;
@@ -113,12 +113,19 @@ class _PaintCanvasState extends State<PaintCanvas> {
   @override
   void didUpdateWidget(covariant PaintCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
+    // 换图会换新 controller（默认笔宽 4），必须重新应用当前工具的画笔配置。
+    final controllerChanged = oldWidget.controller != widget.controller;
+    if (controllerChanged) {
       oldWidget.controller.removeListener(_onHistoryChanged);
       widget.controller.addListener(_onHistoryChanged);
       _deepLayerTimer?.cancel();
     }
-    if (oldWidget.tool != widget.tool) _applyTool(widget.tool);
+    if (controllerChanged || oldWidget.tool != widget.tool) {
+      _applyTool(widget.tool);
+    } else if (oldWidget.strokeWidth != widget.strokeWidth && _inputEnabled) {
+      // 只换样式：保留画笔内容，正在进行的笔迹与历史都不受影响。
+      widget.controller.setStyle(strokeWidth: _strokeWidth);
+    }
     if (oldWidget.size != widget.size || oldWidget.image != widget.image) {
       _resetZoom();
     }
@@ -132,6 +139,11 @@ class _PaintCanvasState extends State<PaintCanvas> {
     super.dispose();
   }
 
+  double get _strokeWidth => widget.strokeWidth ??
+      (widget.tool == EditorTool.eraser
+          ? kDefaultEraserWidth
+          : kDefaultBrushWidth);
+
   void _applyTool(EditorTool tool) {
     switch (tool) {
       // 用单 path 贝塞尔线条（SimpleLine）：整条笔迹一次 drawPath 绘制，
@@ -141,14 +153,14 @@ class _PaintCanvasState extends State<PaintCanvas> {
           ..setPaintContent(SimpleLine(useBezierCurve: true))
           ..setStyle(
             color: AppColors.primary.withValues(alpha: kBrushOpacity),
-            strokeWidth: kBrushWidth,
+            strokeWidth: _strokeWidth,
             isAntiAlias: true,
           );
       case EditorTool.eraser:
         widget.controller
           ..setPaintContent(Eraser())
           ..setStyle(
-            strokeWidth: kEraserWidth,
+            strokeWidth: _strokeWidth,
             isAntiAlias: true,
           );
       case EditorTool.smartSelect:

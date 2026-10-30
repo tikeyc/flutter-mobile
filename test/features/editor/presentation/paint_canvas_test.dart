@@ -189,6 +189,62 @@ void main() {
     expect(alphaAt(150, 60), 0);
   });
 
+  testWidgets('提交笔迹后清掉旧缓存图，新笔迹立即可见', (tester) async {
+    late ui.Image transparent;
+    late ui.Image staleCache;
+    await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder);
+      transparent = await recorder.endRecording().toImage(300, 300);
+      final staleRecorder = ui.PictureRecorder();
+      Canvas(staleRecorder);
+      staleCache = await staleRecorder.endRecording().toImage(300, 300);
+    });
+    addTearDown(transparent.dispose);
+    addTearDown(staleCache.dispose);
+
+    final ctrl = DrawingController();
+    addTearDown(ctrl.dispose);
+    await tester.pumpWidget(canvasApp(controller: ctrl, image: transparent));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    // 模拟上一笔提交后留下的缓存图：里面还没有这一笔。
+    ctrl.cachedImage = staleCache;
+
+    final origin = tester.getRect(find.byType(RawImage)).topLeft;
+    final gesture = await tester.startGesture(origin + const Offset(40, 150));
+    for (var x = 48.0; x <= 260.0; x += 8) {
+      await gesture.moveTo(origin + Offset(x, 150));
+      await tester.pump();
+    }
+    await gesture.up();
+    // 包内提交时不会清缓存图，画布必须自己清：否则重录完成前的任何一次
+    // 重绘都会拿旧图走快路径，把刚提交的笔迹吞掉。
+    expect(ctrl.cachedImage, isNull);
+    await tester.pump(const Duration(milliseconds: 16));
+
+    // 缓存图还在重录时又来一次底层重绘：这里必须实时重录，而不是退回旧图。
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    ctrl.realPainter!.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    late ui.Image exported;
+    await tester.runAsync(() async {
+      final data = await ctrl.getImageData(pixelRatio: 1.0);
+      expect(data, isNotNull);
+      final codec = await ui.instantiateImageCodec(data!.buffer.asUint8List());
+      exported = (await codec.getNextFrame()).image;
+    });
+    addTearDown(exported.dispose);
+
+    final rgba = await tester.runAsync(
+      () => exported.toByteData(format: ui.ImageByteFormat.rawRgba),
+    );
+    expect(rgba, isNotNull);
+    final alpha = rgba!.getUint8(((150 * exported.width) + 150) * 4 + 3);
+    expect(alpha, greaterThan(100), reason: '新笔迹应立即可见，实际 $alpha');
+  });
+
   testWidgets('画笔按下即画，快速连画两笔无需停顿', (tester) async {
     final ctrl = await pumpCanvas(tester);
 

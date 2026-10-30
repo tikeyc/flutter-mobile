@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -74,6 +75,14 @@ class _PaintCanvasState extends State<PaintCanvas> {
   /// 内容左上角在视口中的位置；1x 时为图片居中偏移。
   Offset _offset = Offset.zero;
 
+  /// 缩放/平移矩阵独立放 ValueNotifier：双指移动时只重建 Transform，
+  /// 不重建画板子树（DrawingBoard/GetSize/画笔都保持不变）。
+  final ValueNotifier<Matrix4> _matrix = ValueNotifier<Matrix4>(
+    Matrix4.identity(),
+  );
+
+  Timer? _deepLayerTimer;
+
   bool _pinching = false;
   double _pinchStartScale = 1;
   double _pinchStartSpan = 0;
@@ -96,16 +105,31 @@ class _PaintCanvasState extends State<PaintCanvas> {
   void initState() {
     super.initState();
     _offset = _centeredOffset;
+    _matrix.value = _transformMatrix;
     _applyTool(widget.tool);
+    widget.controller.addListener(_onHistoryChanged);
   }
 
   @override
   void didUpdateWidget(covariant PaintCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onHistoryChanged);
+      widget.controller.addListener(_onHistoryChanged);
+      _deepLayerTimer?.cancel();
+    }
     if (oldWidget.tool != widget.tool) _applyTool(widget.tool);
     if (oldWidget.size != widget.size || oldWidget.image != widget.image) {
       _resetZoom();
     }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onHistoryChanged);
+    _deepLayerTimer?.cancel();
+    _matrix.dispose();
+    super.dispose();
   }
 
   void _applyTool(EditorTool tool) {
@@ -166,9 +190,40 @@ class _PaintCanvasState extends State<PaintCanvas> {
   void _resetZoom() {
     final centered = _centeredOffset;
     if (_scale == 1 && _offset == centered) return;
-    setState(() {
-      _scale = 1;
-      _offset = centered;
+    _scale = 1;
+    _offset = centered;
+    _matrix.value = _transformMatrix;
+  }
+
+  /// 包内 `_DeepPainter` 每次提交笔迹都把全部历史重新录制进图层，且缓存图
+  /// 就绪后不会自动重绘 —— 于是之后每一帧都要重放整段历史，笔迹越多越慢。
+  /// 这里在缓存图就绪后补一次重绘，让它改走「只画一张缓存图」的快路径。
+  void _onHistoryChanged() {
+    _deepLayerTimer?.cancel();
+    final controller = widget.controller;
+    // 包内提交后不会清掉旧缓存图，先置空：缓存图刷新前的重绘只能实时重录，
+    // 否则会拿上一版缓存图走快路径，把刚提交的笔迹吞掉。
+    controller.cachedImage = null;
+
+    ui.Image? notified;
+    var ticks = 0;
+    var stable = 0;
+    _deepLayerTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      final image = controller.cachedImage;
+      if (!mounted || widget.controller != controller || ++ticks > 90) {
+        timer.cancel();
+        return;
+      }
+      if (image == null || identical(image, notified)) {
+        // 还在等重录完成；或缓存图已稳定（没有新的重录在路上），停止轮询。
+        if (image != null && ++stable > 15) timer.cancel();
+        return;
+      }
+      notified = image;
+      stable = 0;
+      // 包内没有公开的「重录底层」接口，只能直接通知它的重绘监听器。
+      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+      controller.realPainter?.notifyListeners();
     });
   }
 
@@ -200,10 +255,11 @@ class _PaintCanvasState extends State<PaintCanvas> {
     // 起始焦点下的内容始终跟随当前焦点：围绕双指中心缩放/平移。
     final offset = focal -
         (_pinchStartFocal - _pinchStartOffset) * (scale / _pinchStartScale);
-    setState(() {
-      _scale = scale;
-      _offset = _clampOffset(offset, scale);
-    });
+    final clamped = _clampOffset(offset, scale);
+    if (clamped == _offset && scale == _scale) return;
+    _scale = scale;
+    _offset = clamped;
+    _matrix.value = _transformMatrix;
   }
 
   void _onPointerEnd(PointerEvent event) {
@@ -258,10 +314,14 @@ class _PaintCanvasState extends State<PaintCanvas> {
         child: ClipRect(
           child: Stack(
             children: [
-              Transform(
-                key: const Key('canvas-transform'),
-                alignment: Alignment.topLeft,
-                transform: _transformMatrix,
+              ValueListenableBuilder<Matrix4>(
+                valueListenable: _matrix,
+                builder: (context, matrix, child) => Transform(
+                  key: const Key('canvas-transform'),
+                  alignment: Alignment.topLeft,
+                  transform: matrix,
+                  child: child,
+                ),
                 child: SizedBox(
                   width: board.width,
                   height: board.height,
@@ -273,6 +333,8 @@ class _PaintCanvasState extends State<PaintCanvas> {
                           controller: widget.controller,
                           boardPanEnabled: false,
                           boardScaleEnabled: false,
+                          // 画布是轴对齐矩形，硬边裁剪省掉每帧的抗锯齿裁剪。
+                          clipBehavior: Clip.hardEdge,
                           background: SizedBox(
                             width: board.width,
                             height: board.height,

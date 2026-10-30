@@ -88,6 +88,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     _smartSelect.cancelPreview();
     _autoCutout.cancelPreview();
     _disposeController(_controller);
+    _image?.dispose();
     super.dispose();
   }
 
@@ -122,6 +123,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       return;
     }
     final old = _controller;
+    final oldImage = _image;
     ref.read(smartSelectProvider.notifier).cancelPreview();
     _autoCutout.cancelPreview();
     setState(() {
@@ -138,8 +140,11 @@ class _EditorPageState extends ConsumerState<EditorPage> {
         ref.read(editorProvider).currentTool == EditorTool.smartSelect) {
       ref.read(editorProvider.notifier).selectTool(EditorTool.brush);
     }
-    // 旧画布子树在本帧结束后才卸载，届时再释放旧 controller。
-    WidgetsBinding.instance.addPostFrameCallback((_) => _disposeController(old));
+    // 旧画布子树在本帧结束后才卸载，届时再释放旧 controller 与原图。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _disposeController(old);
+      oldImage?.dispose();
+    });
     if (demo &&
         ref.read(editorProvider).currentTool == EditorTool.smartSelect) {
       unawaited(_prepareSmartSelect());
@@ -388,6 +393,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       ref.read(editorProvider.notifier).selectTool(EditorTool.brush);
     }
     final old = _controller;
+    final oldImage = _image;
     setState(() {
       _controller = DrawingController();
       _image = null;
@@ -397,7 +403,10 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       _cutoutSelections.clear();
       _cancelTarget = null;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _disposeController(old));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _disposeController(old);
+      oldImage?.dispose();
+    });
   }
 
   Future<void> _generate() async {
